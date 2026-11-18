@@ -1,1 +1,3 @@
-versao do php tem que pelo menos 8
+versao do php 8
+extensoes php-sqlite, php-gd, sqlite
+rodando pelo servidor php
