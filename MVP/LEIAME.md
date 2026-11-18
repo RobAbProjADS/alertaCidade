@@ -3,14 +3,14 @@
 É necessário ter PHP com as extensões `pdo_sqlite`, `fileinfo`, `php-gd` e `mbstring`. No terminal, dentro da pasta do projeto:
 
 ```bash
-ALERTACIDADE_ADMIN_PASSWORD='troque-esta-senha' php -S localhost:8000
+ALERTACIDADE_ADMIN_PASSWORD='troque-esta-senha' php -S localhost:8001
 ```
 
 No Windows PowerShell:
 
 ```powershell
 $env:ALERTACIDADE_ADMIN_PASSWORD="troque-esta-senha"
-php -S localhost:8000
+php -S localhost:8001
 ```
 
 Acesse `http://localhost:8000`. Para testar a área administrativa, abra os detalhes de um alerta e informe a senha configurada.
