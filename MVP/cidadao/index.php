@@ -1,7 +1,15 @@
 <?php
 declare(strict_types=1);
 
+session_start();
+
 require dirname(__DIR__) . '/database.php';
+
+if (empty($_SESSION['citizen'])) {
+    $_SESSION['citizen'] = bin2hex(random_bytes(16));
+}
+
+$citizenId = $_SESSION['citizen'];
 
 $categories = [
     'Iluminação pública',
@@ -111,15 +119,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($action === 'support') {
-        $id = filter_input(INPUT_POST, 'alert_id', FILTER_VALIDATE_INT);
-        if ($id) {
-            $pdo->prepare(
-                'INSERT OR IGNORE INTO supports (alert_id, supporter) VALUES (?, ?)'
-            )->execute([$id, $_SESSION['citizen']]);
-        }
-        redirect('index.php');
+  if ($action === 'support') {
+    $id = filter_input(INPUT_POST, 'alert_id', FILTER_VALIDATE_INT);
+
+    if ($id) {
+        $stmt = $pdo->prepare(
+            'INSERT OR IGNORE INTO supports (alert_id, supporter) VALUES (?, ?)'
+        );
+        $stmt->execute([$id, $_SESSION['citizen']]);
     }
+
+    redirect('index.php');
+}
 }
 
 $mine = isset($_GET['mine']);
