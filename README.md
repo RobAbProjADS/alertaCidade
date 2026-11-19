@@ -58,12 +58,12 @@ Antes de instalar, verifique se você possui:
 
 | Nome | GitHub | Responsabilidade |
 |---|---|---|
-| Roberta Cristina de Abreu | [@main e @RobAb](https://github.com/RobAbProjADS)
+| Roberta Cristina de Abreu | [@main e @RobAb](https://github.com/RobAbProjADS) | iniciar projeto em PHP, README e auxiliar no repositório
 | [Nome do colaborador] | [@usuário](https://github.com/usuário) 
 
 ## Casos de uso (Use Case)
 
-Descreva os atores e as ações que cada um pode realizar no sistema. Substitua os exemplos abaixo pelos casos de uso do projeto.
+Descreva os atores e as ações que cada um pode realizar no sistema. 
 
 ```mermaid
 flowchart LR
@@ -80,17 +80,17 @@ Inclua os diagramas UML relevantes para documentar a estrutura e o comportamento
 ```mermaid
 classDiagram
     class Usuario {
-        +id
+        +cpf
         +nome
-        +email
+        +endereco
         +consultarInformacoes()
     }
 
     class Informacao {
-        +id
         +titulo
         +descricao
-        +dataCriacao
+        +geolocalizacao
+        +imagem
     }
 
     Usuario "1" --> "0..*" Informacao : consulta
