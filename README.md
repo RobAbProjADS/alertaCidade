@@ -1,9 +1,10 @@
 #ALERTACIDADE
 
-> **Resumo:** O AlertaCidade propõe uma plataforma digital de participação cidadã que permite registrar, visualizar, apoiar e acompanhar ocorrências urbanas, utilizando recursos de geolocalizaçãO e imagens. 
+> **Resumo:** Plataforma de Participação Cidadã e Acompanhamento de Ocorrências Urbanas
+> 
 ## Sobre o projeto
 
-[Apresente o contexto, os principais recursos e o funcionamento geral do sistema.]
+O AlertaCidade propõe uma plataforma digital de participação cidadã que permite registrar, visualizar, apoiar e acompanhar ocorrências urbanas, utilizando recursos de geolocalização e imagens. 
 
 ## Linguagens e tecnologias
 
@@ -91,6 +92,7 @@ classDiagram
         +descricao
         +geolocalizacao
         +imagem
+        +apoiar
     }
 
     Usuario "1" --> "0..*" Informacao : consulta
