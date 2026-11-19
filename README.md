@@ -1,27 +1,26 @@
-# [Nome do projeto]
+#ALERTACIDADE
 
-> **Resumo:** [Descreva em poucas frases o objetivo do projeto, o problema que resolve e quem pode utilizá-lo.]
-
+> **Resumo:** O AlertaCidade propõe uma plataforma digital de participação cidadã que permite registrar, visualizar, apoiar e acompanhar ocorrências urbanas, utilizando recursos de geolocalizaçãO e imagens. 
 ## Sobre o projeto
 
 [Apresente o contexto, os principais recursos e o funcionamento geral do sistema.]
 
 ## Linguagens e tecnologias
 
-- **Linguagens:** [Ex.: PHP, JavaScript, HTML, CSS]
-- **Banco de dados:** [Ex.: SQLite]
-- **Frameworks e ferramentas:** [Ex.: listar frameworks, bibliotecas e ferramentas utilizadas]
+- **Linguagens:** PHP,HTML
+- **Banco de dados:** SQLite
+- **Frameworks e ferramentas:** VSCODE
 
 ## Pré-requisitos
 
 Antes de instalar, verifique se você possui:
 
 - PHP 8 ou superior;
-- Extensões PHP para SQLite (`php-sqlite3`) e GD (`php-gd`), se utilizadas pelo projeto;
+- Extensões PHP para SQLite (`php-sqlite3`) , GD (`php-gd`), MBstring (`php-mbstring`) e FileInfo (`php-fileinfo`)
+- Extensões do VSCODE : PHP Server e PHP Intelephense utilizadas pelo projeto;
 - SQLite;
 - Git.
-
-> Ajuste esta lista de acordo com as tecnologias e versões realmente utilizadas no projeto.
+- GitHub Desktop
 
 ## Instalação e execução
 
@@ -35,23 +34,32 @@ Antes de instalar, verifique se você possui:
 2. Configure as dependências e o banco de dados, se necessário:
 
    ```bash
-   # Inclua aqui os comandos específicos do projeto
+   # sudo apt install php-fileinfo
+
+   # sudo apt install php-gd
+   
+   #​ sudo apt install php-sqlite3
+
+   # sudo apt install php-mbstring
+
+​​     #
    ```
 
 3. Inicie o servidor local PHP:
 
    ```bash
-   php -S localhost:8000
+   ALERTACIDADE_ADMIN_PASSWORD='troque-esta-senha' php -S localhost:8089
+
    ```
 
-4. Acesse [http://localhost:8000](http://localhost:8000) no navegador.
+4. Acesse [http://localhost:8089](http://localhost:8089) no navegador.
 
 ## Colaboradores
 
 | Nome | GitHub | Responsabilidade |
 |---|---|---|
-| [Nome do colaborador] | [@usuário](https://github.com/usuário) | [Responsabilidade no projeto] |
-| [Nome do colaborador] | [@usuário](https://github.com/usuário) | [Responsabilidade no projeto] |
+| Roberta Cristina de Abreu | [@main e @RobAb](https://github.com/RobAbProjADS)
+| [Nome do colaborador] | [@usuário](https://github.com/usuário) 
 
 ## Casos de uso (Use Case)
 
@@ -94,7 +102,7 @@ classDiagram
 2. Faça as alterações e os testes necessários.
 3. Abra um pull request descrevendo o que foi feito.
 
-## Licença
 
-[Informe a licença do projeto, se aplicável.]
+
+
 
