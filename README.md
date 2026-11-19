@@ -81,21 +81,25 @@ Inclua os diagramas UML relevantes para documentar a estrutura e o comportamento
 ```mermaid
 classDiagram
     class Usuario {
-        +cpf
         +nome
-        +endereco
+        +email
+        +cpf
+        +telefone
+        +senha
         +consultarInformacoes()
     }
 
-    class Informacao {
+    class registrar {
         +titulo
         +descricao
+        +categoria
+        +endereco
         +geolocalizacao
-        +imagem
-        +apoiar
+        +imagem      
+
     }
 
-    Usuario "1" --> "0..*" Informacao : consulta
+    Usuario "1" --> "0..*" registrar : consulta
 ```
 
 ## Como contribuir
