@@ -11,15 +11,22 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+$title = trim((string)($_POST['title'] ?? ''));
 $description = trim((string)($_POST['description'] ?? ''));
 
-if ($description === '' || mb_strlen($description, 'UTF-8') > 2000) {
+if ($title === '' && $description === '') {
     http_response_code(400);
-    echo json_encode(['error' => 'Descrição inválida']);
+    echo json_encode(['error' => 'Informe o título ou a descrição']);
+    exit;
+}
+
+if (mb_strlen($title, 'UTF-8') > 200 || mb_strlen($description, 'UTF-8') > 2000) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Texto muito longo']);
     exit;
 }
 
 echo json_encode(
-    ['category' => sugerirCategoria($description)],
+    ['category' => sugerirCategoria($description, $title)],
     JSON_UNESCAPED_UNICODE
 );
