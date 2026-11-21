@@ -14,55 +14,96 @@ O AlertaCidade propõe uma plataforma digital de participação cidadã que perm
 
 ## Pré-requisitos
 
-Antes de instalar, verifique se você possui:
+- PHP 8 ou superior
+- Extensões PHP: `pdo_sqlite`, `gd`, `mbstring` e `fileinfo`
+- Git
 
-- PHP 8 ou superior;
-- Extensões PHP para SQLite (`php-sqlite3`) , GD (`php-gd`), MBstring (`php-mbstring`) e FileInfo (`php-fileinfo`)
-- Extensões do VSCODE : PHP Server e PHP Intelephense utilizadas pelo projeto;
-- SQLite;
-- Git.
-- GitHub Desktop
+O banco é um arquivo SQLite criado na primeira execução. Não há Composer, npm nem servidor de banco para instalar. O `composer.json` na raiz só registra que o projeto pede PHP 8 ou superior.
 
-## Instalação e execução
+Cidadão e gestor usam o mesmo servidor. As duas áreas são caminhos diferentes:
 
-1. Clone o repositório:
+- Cidadão: http://localhost:8080/cidadao/
+- Gestor: http://localhost:8080/gestor/
 
-   ```bash
-   git clone https://github.com/RobAbProjADS/alertaCidade.git
-   cd alertaCidade
-   ```
+O servidor precisa ser iniciado **dentro** de `MVP-20261120-ATUALIZADO` ou de `MVP`. A raiz do repositório não tem `index.php`.
 
-2. Configure as dependências e o banco de dados, se necessário:
+## Instalação do PHP
 
-   ```bash
-   # sudo apt install php-fileinfo
+### Linux (Debian, Ubuntu e derivados)
 
-   # sudo apt install php-gd
-   
-   #​ sudo apt install php-sqlite3
+```bash
+sudo apt update
+sudo apt install php-cli php-sqlite3 php-gd php-mbstring
+php -v
+php -m | grep -E 'pdo_sqlite|gd|mbstring|fileinfo'
+```
 
-   # sudo apt install php-mbstring
+### macOS
 
-​​     #
-   ```
+Com o [Homebrew](https://brew.sh/). No Apple Silicon o pacote já é nativo (`arm64`).
 
-3. a)Inicie o servidor local PHP como cidadão:
+```bash
+brew install php
+php -v
+php -m | grep -E 'pdo_sqlite|gd|mbstring|fileinfo'
+```
 
-   ```bash
-   ALERTACIDADE_ADMIN_PASSWORD='troque-esta-senha' php -S localhost:8089
+O PHP do Homebrew já inclui SQLite, GD, mbstring e fileinfo.
 
-b)Inicie o servidor local PHP como gestor:
+### Windows
 
-   ```bash
-   ALERTACIDADE_SETUP_TOKEN="coloque-um-token-longo-aqui" php -S localhost:8081
+Instale o PHP 8 e marque as extensões SQLite, GD, mbstring e fileinfo. Pelo [winget](https://learn.microsoft.com/windows/package-manager/winget/):
 
-para validar a criação do usuário precisa colocar no campo token: coloque-um-token-longo-aqui
+```powershell
+winget install PHP.PHP.8.3
+php -v
+php -m
+```
 
+Se alguma extensão não aparecer, abra o `php.ini` (o caminho sai em `php --ini`) e retire o `;` do início destas linhas:
 
-   ```
+```ini
+extension=gd
+extension=mbstring
+extension=fileinfo
+extension=pdo_sqlite
+extension=sqlite3
+```
 
-4. Acesse usuário [http://localhost:8089](http://localhost:8089) no navegador.
-   Acesse gestor [http://localhost:8081](http://localhost:8081) no navegador.
+Feche e abra o terminal depois de mudar o `PATH`.
+
+## Executar
+
+Clone o repositório e entre na pasta da aplicação:
+
+```bash
+git clone https://github.com/RobAbProjADS/alertaCidade.git
+cd alertaCidade/MVP-20261120-ATUALIZADO
+```
+
+No Windows, o mesmo caminho no PowerShell ou no Prompt de Comando:
+
+```powershell
+cd alertaCidade\MVP-20261120-ATUALIZADO
+```
+
+Suba o servidor embutido do PHP. O comando é o mesmo nos três sistemas:
+
+```bash
+php -S localhost:8080
+```
+
+Abra no navegador:
+
+- http://localhost:8080 — escolha cidadão ou gestor
+- http://localhost:8080/cidadao/ — feed, cadastro e novas ocorrências
+- http://localhost:8080/gestor/ — painel de gestão
+
+Para entrar como gestor use o usuário `admin`. A senha dessa conta fica só no ambiente local e não é publicada no repositório. Ela é criada no banco na primeira visita. O cidadão se cadastra em http://localhost:8080/cidadao/ com uma senha de pelo menos 8 caracteres.
+
+Pare o servidor com Ctrl+C.
+
+O servidor embutido serve só para desenvolvimento. Antes de publicar, use HTTPS, autenticação adequada e validação de upload no ambiente de produção.
 
 ## Colaboradores
 

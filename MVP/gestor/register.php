@@ -118,7 +118,7 @@ endif;
 
         <?php if ($success !== ''): ?>
             <p class="success"><?= h($success) ?></p>
-            <p><a class="link" href="<?= $isManager ? 'painel.php' : 'index.php' ?>">
+            <p><a class="link" href="index.php">
                     <?= $isManager ? 'Voltar ao painel' : 'Ir para o login' ?>
                 </a></p>
         <?php else: ?>
@@ -158,7 +158,7 @@ endif;
             </form>
 
             <?php if ($isManager): ?>
-                <p><a class="link" href="painel.php">Voltar ao painel</a></p>
+                <p><a class="link" href="index.php">Voltar ao painel</a></p>
             <?php else: ?>
                 <p><a class="link" href="index.php">Voltar ao login</a></p>
             <?php endif; ?>

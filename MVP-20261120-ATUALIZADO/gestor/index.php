@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['manager_id'] = (int)$manager['id'];
             $_SESSION['manager_username'] = $manager['username'];
 
-            redirect('painel.php');
+            redirect('index.php');
         }
     }
 }
@@ -129,7 +129,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
         }
     }
 
-    redirect('painel.php');
+    $returnQuery = (string)($_POST['return_query'] ?? '');
+    if (!preg_match('/^[A-Za-z0-9%=&+_.\-]*$/', $returnQuery)) {
+        $returnQuery = '';
+    }
+
+    redirect($returnQuery === '' ? 'index.php' : 'index.php?' . $returnQuery);
 }
 
 $categoryFilter = trim((string)($_GET['category'] ?? ''));
