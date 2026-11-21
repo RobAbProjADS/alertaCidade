@@ -9,6 +9,14 @@ Cidadão e gestor usam o mesmo servidor:
 
 Para o painel do gestor, entre com o usuário `admin`. A senha fica só no ambiente local e não é publicada no repositório.
 
+Cadastrar outro gestor exige o token. Pare o servidor e inicie de novo com ele:
+
+```bash
+ALERTACIDADE_SETUP_TOKEN="coloque-um-token-longo-aqui" php -S localhost:8080
+```
+
+No PowerShell: `$env:ALERTACIDADE_SETUP_TOKEN="coloque-um-token-longo-aqui"` antes de `php -S localhost:8080`. No formulário "Cadastrar gestor", digite o mesmo token.
+
 ### Linux (Debian, Ubuntu e derivados)
 
 ```bash

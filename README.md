@@ -93,6 +93,21 @@ Suba o servidor embutido do PHP. O comando é o mesmo nos três sistemas:
 php -S localhost:8080
 ```
 
+Para cadastrar outro gestor, o servidor precisa conhecer o token. Pare o processo e suba de novo:
+
+```bash
+ALERTACIDADE_SETUP_TOKEN="coloque-um-token-longo-aqui" php -S localhost:8080
+```
+
+No PowerShell:
+
+```powershell
+$env:ALERTACIDADE_SETUP_TOKEN="coloque-um-token-longo-aqui"
+php -S localhost:8080
+```
+
+Entre como gestor, abra "Cadastrar gestor" e digite esse mesmo token no formulário. Sem o token, o cadastro não é gravado.
+
 Abra no navegador:
 
 - http://localhost:8080 — escolha cidadão ou gestor
