@@ -1,0 +1,264 @@
+:root {
+    --primary: #18312a;
+    --accent: #126b53;
+    --muted: #5a736a;
+    --bg: #f2f5f4;
+    --border: #dbe4e0;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font: 14px/1.5 Arial, sans-serif;
+    background: var(--bg);
+    color: var(--primary);
+}
+
+header {
+    background: var(--primary);
+    color: white;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 20px;
+}
+
+header a {
+    color: white;
+    text-decoration: none;
+    padding: 7px 12px;
+    background: #ffffff26;
+    border-radius: 6px;
+}
+
+main {
+    max-width: 1300px;
+    margin: 24px auto;
+    padding: 0 18px;
+}
+
+h2 {
+    font-size: 18px;
+    margin: 0 0 14px;
+}
+
+.card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin: 18px 0;
+    box-shadow: 0 1px 3px #00000008;
+}
+
+.filters,
+.filter-row {
+    display: flex;
+    gap: 12px;
+    align-items: end;
+    flex-wrap: wrap;
+}
+
+.filter-field {
+    display: grid;
+    gap: 5px;
+}
+
+label {
+    font-size: 12px;
+    font-weight: bold;
+}
+
+select,
+input,
+button {
+    font: inherit;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    background: white;
+}
+
+button,
+.button {
+    background: var(--accent);
+    color: white;
+    border: 0;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+    padding: 9px 13px;
+    border-radius: 6px;
+}
+
+.button.secondary {
+    background: #5a736a;
+}
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+}
+
+.metric {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+}
+
+.metric-label {
+    display: block;
+    color: var(--muted);
+    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+.metric-value {
+    font-size: 27px;
+    font-weight: bold;
+    color: var(--accent);
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 18px;
+}
+
+.chart-wrap {
+    height: 290px;
+}
+
+#alerts-map {
+    height: 470px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 850px;
+}
+
+th,
+td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid #edf2f0;
+}
+
+th {
+    background: #f7faf9;
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+}
+
+.description {
+    max-width: 300px;
+}
+
+.no-data {
+    color: var(--muted);
+}
+
+@media (max-width: 650px) {
+    header {
+        padding: 14px;
+    }
+
+    main {
+        padding: 0 10px;
+    }
+
+    .card {
+        padding: 14px;
+    }
+
+    #alerts-map {
+        height: 360px;
+    }
+}
+
+.login-card {
+    width: 100%;
+    max-width: 380px;
+    padding: 28px;
+    background: #fff;
+    border: 1px solid #dbe4e0;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgb(0 0 0 / 6%);
+}
+
+.login-card h1 {
+    margin: 0 0 20px;
+    font-size: 20px;
+}
+
+.login-card label {
+    display: block;
+    margin: 12px 0 6px;
+    font-weight: 700;
+}
+
+.login-card input,
+.login-card button {
+    width: 100%;
+    padding: 11px;
+    border-radius: 7px;
+    font: inherit;
+}
+
+.login-card input {
+    border: 1px solid #ccd8d3;
+}
+
+.login-card input:focus {
+    border-color: #126b53;
+    outline: 3px solid rgb(18 107 83 / 15%);
+}
+
+.login-card button {
+    margin-top: 14px;
+    border: 0;
+    background: #126b53;
+    color: #fff;
+    cursor: pointer;
+}
+
+.login-card button:hover {
+    background: #0e5844;
+}
+
+.login-card .error {
+    padding: 10px;
+    border-radius: 6px;
+    background: #fdeeee;
+    color: #9b2215;
+}
+
+.login-card .link {
+    color: #126b53;
+    text-decoration: none;
+}
+
+.login-card .link:hover {
+    text-decoration: underline;
+}
+

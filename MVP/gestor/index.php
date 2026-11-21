@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/database.php';
@@ -9,94 +10,145 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     checkCsrf();
 
-    $configuredPassword = getenv('ALERTACIDADE_ADMIN_PASSWORD') ?: '';
-    $password = (string)($_POST['password'] ?? '');
+    if (isset($_POST['login'])) {
+        $username = trim((string)($_POST['username'] ?? ''));
+        $password = (string)($_POST['password'] ?? '');
 
-    if ($configuredPassword === '' || !hash_equals($configuredPassword, $password)) {
-        $error = 'Senha administrativa incorreta ou não configurada.';
-    } else {
-        $_SESSION['is_manager'] = true;
+        $stmt = $pdo->prepare(
+            'SELECT id, username, password_hash
+             FROM managers
+             WHERE username = :username
+             LIMIT 1'
+        );
+        $stmt->execute(['username' => $username]);
+        $manager = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$manager || !password_verify($password, $manager['password_hash'])) {
+            $error = 'Usuário ou senha incorretos.';
+        } else {
+            session_regenerate_id(true);
+            $_SESSION['is_manager'] = true;
+            $_SESSION['manager_id'] = (int)$manager['id'];
+            $_SESSION['manager_username'] = $manager['username'];
+
+            redirect('painel.php');
+        }
     }
 }
 
 if (isset($_GET['sair'])) {
     unset($_SESSION['is_manager']);
-    redirect('index.php');
+    redirect('logout.php');
 }
 
 if (empty($_SESSION['is_manager'])):
 ?>
-<!doctype html>
-<html lang="pt-BR">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>🚨 AlertaCidade — Gestor</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚨</text></svg>">
-<style>
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-size: 15px;
-    background: #f2f5f4;
-    color: #18312a;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 80vh;
-    margin: 0;
-    padding: 16px;
-}
-.login-card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 28px;
-    max-width: 380px;
-    width: 100%;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    border: 1px solid #dbe4e0;
-}
-h1 { font-size: 20px; font-weight: 700; margin: 0 0 16px 0; color: #18312a; }
-label { display: block; font-size: 13px; font-weight: 700; text-transform: uppercase; color: #23433a; margin-bottom: 6px; }
-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #ccd8d3; border-radius: 8px; font-size: 14px; margin-bottom: 14px; }
-button { width: 100%; padding: 10px; background: #126b53; color: white; border: 0; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; }
-button:hover { background: #0e5441; }
-.error { color: #9b2215; background: #fdeeee; padding: 8px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; }
-</style>
-</head>
-<body>
-    <div class="login-card">
-        <h1>Painel do gestor</h1>
-        <?php if ($error): ?><div class="error"><?= h($error) ?></div><?php endif; ?>
-        <form method="post">
-            <?= csrfField() ?>
-            <label for="password">Senha administrativa</label>
-            <input id="password" type="password" name="password" required autofocus placeholder="Digite a senha de acesso">
-            <button type="submit">Entrar no painel</button>
-        </form>
-    </div>
-</body>
-</html>
+    <!doctype html>
+    <html lang="pt-BR">
+
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>AlertaCidade — Gestor</title>
+        <link rel="stylesheet" href="assets/gestor.css">
+        <style>
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: Arial, sans-serif;
+                background: #f2f5f4;
+                color: #18312a;
+                display: grid;
+                place-items: center;
+                min-height: 100vh;
+                margin: 0;
+                padding: 16px;
+            }
+        </style>
+    </head>
+
+    <body>
+        <main class="login-card">
+            <h1>Painel do gestor</h1>
+
+            <?php if ($error !== ''): ?>
+                <p class="error"><?= h($error) ?></p>
+            <?php endif; ?>
+
+            <form method="post">
+                <?= csrfField() ?>
+                <input type="hidden" name="login" value="1">
+
+                <label for="username">Usuário</label>
+                <input id="username" type="text" name="username" required autofocus autocomplete="username">
+
+                <label for="password">Senha</label>
+                <input id="password" type="password" name="password" required autocomplete="current-password">
+
+                <button type="submit">Entrar no painel</button>
+            </form>
+
+            <p><a class="link" href="register.php">Cadastrar gestor</a></p>
+        </main>
+
+    </body>
+
+    </html>
+
 <?php
-exit;
+    exit;
 endif;
 
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
-    $id = filter_input(INPUT_POST, 'alert_id', FILTER_VALIDATE_INT);
+    checkCsrf();
+
+    $id = filter_var($_POST['alert_id'] ?? null, FILTER_VALIDATE_INT);
     $status = (string)($_POST['status'] ?? '');
+    $managerUsername = (string)($_SESSION['manager_username'] ?? 'Gestor');
 
     if ($id && in_array($status, $statuses, true)) {
-        $pdo->prepare('UPDATE alerts SET status = ? WHERE id = ?')->execute([$status, $id]);
-        $pdo->prepare("
-            INSERT INTO status_history (alert_id, status, changed_by)
-            VALUES (?, ?, 'Gestor')
-        ")->execute([$id, $status]);
+        $pdo->beginTransaction();
 
-        redirect('index.php');
+        try {
+            $update = $pdo->prepare('UPDATE alerts SET status = ? WHERE id = ?');
+            $update->execute([$status, $id]);
+
+            $history = $pdo->prepare("
+                INSERT INTO status_history (alert_id, status, changed_by)
+                VALUES (?, ?, ?)
+            ");
+            $history->execute([$id, $status, $managerUsername]);
+
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
     }
+
+    redirect('painel.php');
 }
 
 $categoryFilter = trim((string)($_GET['category'] ?? ''));
 $statusFilter = trim((string)($_GET['status'] ?? ''));
+$dateFrom = trim((string)($_GET['date_from'] ?? ''));
+$dateTo = trim((string)($_GET['date_to'] ?? ''));
+
+$validDate = static fn(string $date): bool =>
+$date === '' || (bool)preg_match('/^\d{4}-\d{2}-\d{2}$/', $date);
+
+if (!$validDate($dateFrom)) {
+    $dateFrom = '';
+}
+if (!$validDate($dateTo)) {
+    $dateTo = '';
+}
+if (!in_array($statusFilter, $statuses, true)) {
+    $statusFilter = '';
+}
 
 $where = [];
 $params = [];
@@ -105,343 +157,397 @@ if ($categoryFilter !== '') {
     $where[] = 'category = ?';
     $params[] = $categoryFilter;
 }
-if ($statusFilter !== '' && in_array($statusFilter, $statuses, true)) {
+if ($statusFilter !== '') {
     $where[] = 'status = ?';
     $params[] = $statusFilter;
 }
-
-$sql = 'SELECT * FROM alerts';
-if ($where) {
-    $sql .= ' WHERE ' . implode(' AND ', $where);
+if ($dateFrom !== '') {
+    $where[] = "date(created_at) >= date(?)";
+    $params[] = $dateFrom;
 }
-$sql .= ' ORDER BY created_at DESC';
+if ($dateTo !== '') {
+    $where[] = "date(created_at) <= date(?)";
+    $params[] = $dateTo;
+}
 
-$stmt = $pdo->prepare($sql);
+$whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+
+$stmt = $pdo->prepare("
+    SELECT *
+    FROM alerts
+    $whereSql
+    ORDER BY created_at DESC
+");
 $stmt->execute($params);
 $alerts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-$alertIds = array_column($alerts, 'id');
-$photosByAlert = [];
-if (!empty($alertIds)) {
-    $in = implode(',', array_fill(0, count($alertIds), '?'));
-    $stmtPhotos = $pdo->prepare("SELECT * FROM alert_photos WHERE alert_id IN ($in) ORDER BY id ASC");
-    $stmtPhotos->execute($alertIds);
-    foreach ($stmtPhotos->fetchAll(PDO::FETCH_ASSOC) as $p) {
-        $photosByAlert[$p['alert_id']][] = $p;
+$total = count($alerts);
+$byStatus = array_fill_keys($statuses, 0);
+$byCategory = [];
+$mapAlerts = [];
+
+foreach ($alerts as $alert) {
+    $status = (string)$alert['status'];
+    if (isset($byStatus[$status])) {
+        $byStatus[$status]++;
+    }
+
+    $category = (string)$alert['category'];
+    $byCategory[$category] = ($byCategory[$category] ?? 0) + 1;
+
+    $lat = $alert['latitude'] ?? null;
+    $lng = $alert['longitude'] ?? null;
+
+    if (
+        $lat !== null && $lng !== null &&
+        is_numeric($lat) && is_numeric($lng) &&
+        (float)$lat >= -90 && (float)$lat <= 90 &&
+        (float)$lng >= -180 && (float)$lng <= 180
+    ) {
+        $mapAlerts[] = [
+            'code' => formatAlertCode((int)$alert['id']),
+            'title' => (string)$alert['title'],
+            'category' => $category,
+            'status' => $status,
+            'address' => (string)$alert['address'],
+            'latitude' => (float)$lat,
+            'longitude' => (float)$lng,
+        ];
     }
 }
 
-$byStatus = $pdo->query("
-    SELECT status, COUNT(*) AS total
-    FROM alerts GROUP BY status
-")->fetchAll(PDO::FETCH_KEY_PAIR);
+arsort($byCategory);
 
-$byCategory = $pdo->query("
-    SELECT category, COUNT(*) AS total
-    FROM alerts GROUP BY category
-    ORDER BY total DESC
-")->fetchAll(PDO::FETCH_ASSOC);
-
+// Categorias disponíveis para o filtro
 $categories = $pdo->query("
-    SELECT DISTINCT category FROM alerts ORDER BY category
+    SELECT DISTINCT category
+    FROM alerts
+    ORDER BY category
 ")->fetchAll(PDO::FETCH_COLUMN);
 
-$total = (int)$pdo->query('SELECT COUNT(*) FROM alerts')->fetchColumn();
+// Alertas por mês no período filtrado
+$monthlyStmt = $pdo->prepare("
+    SELECT strftime('%Y-%m', created_at) AS month, COUNT(*) AS total
+    FROM alerts
+    $whereSql
+    GROUP BY strftime('%Y-%m', created_at)
+    ORDER BY month
+");
+$monthlyStmt->execute($params);
+$monthlyRows = $monthlyStmt->fetchAll(PDO::FETCH_ASSOC);
+
+$monthlyLabels = array_column($monthlyRows, 'month');
+$monthlyTotals = array_map('intval', array_column($monthlyRows, 'total'));
+
+$categoryLabels = array_keys($byCategory);
+$categoryTotals = array_values($byCategory);
+
+$filterQuery = http_build_query([
+    'category' => $categoryFilter,
+    'status' => $statusFilter,
+    'date_from' => $dateFrom,
+    'date_to' => $dateTo,
+]);
 ?>
 <!doctype html>
 <html lang="pt-BR">
+
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>🚨 AlertaCidade — Painel do gestor</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚨</text></svg>">
-<style>
-:root {
-    --primary: #18312a;
-    --accent: #126b53;
-    --text-main: #18312a;
-    --text-muted: #5a736a;
-    --bg: #f2f5f4;
-    --card-bg: #ffffff;
-    --border: #dbe4e0;
-}
-* { box-sizing: border-box; }
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
-    margin: 0;
-    background: var(--bg);
-    color: var(--text-main);
-    -webkit-font-smoothing: antialiased;
-}
-header {
-    background: var(--primary);
-    color: white;
-    padding: 16px 24px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-}
-header h1 {
-    font-size: 20px;
-    font-weight: 700;
-    margin: 0;
-}
-header a {
-    color: #fff;
-    text-decoration: none;
-    font-size: 13px;
-    background: rgba(255,255,255,0.15);
-    padding: 6px 14px;
-    border-radius: 6px;
-    font-weight: 500;
-    transition: background 0.15s;
-}
-header a:hover {
-    background: rgba(255,255,255,0.25);
-}
-main {
-    max-width: 1150px;
-    margin: 24px auto;
-    padding: 0 20px;
-}
-h2 {
-    font-size: 18px;
-    font-weight: 700;
-    color: #18312a;
-    margin: 0 0 14px 0;
-}
-.cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 14px;
-    margin-bottom: 20px;
-}
-.metric-card {
-    background: white;
-    padding: 18px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-}
-.metric-label {
-    display: block;
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    letter-spacing: 0.5px;
-    margin-bottom: 6px;
-}
-.metric-value {
-    font-size: 28px;
-    font-weight: 800;
-    color: var(--accent);
-    margin: 0;
-}
-.card {
-    background: white;
-    padding: 22px;
-    border-radius: 12px;
-    margin: 18px 0;
-    border: 1px solid var(--border);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-}
-table {
-    border-collapse: collapse;
-    width: 100%;
-    margin-top: 14px;
-    background: white;
-}
-th {
-    font-size: 12px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-muted);
-    background: #f7faf9;
-    padding: 12px;
-    border-bottom: 2px solid var(--border);
-    text-align: left;
-}
-td {
-    padding: 12px;
-    border-bottom: 1px solid #edf2f0;
-    font-size: 14px;
-    vertical-align: middle;
-}
-tr:hover td {
-    background: #fcfdfd;
-}
-select, input {
-    padding: 7px 10px;
-    font-family: inherit;
-    font-size: 13px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: white;
-}
-select:focus, input:focus {
-    outline: none;
-    border-color: var(--accent);
-}
-button, .btn {
-    font-family: inherit;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 7px 14px;
-    border: 0;
-    border-radius: 6px;
-    background: var(--accent);
-    color: white;
-    cursor: pointer;
-    transition: opacity 0.15s;
-}
-button:hover, .btn:hover {
-    opacity: 0.9;
-}
-.badge-code {
-    display: inline-block;
-    background: #eaf1ee;
-    color: var(--accent);
-    font-weight: 700;
-    font-size: 12px;
-    padding: 3px 8px;
-    border-radius: 6px;
-}
-.thumb {
-    width: 50px;
-    height: 40px;
-    object-fit: cover;
-    border-radius: 6px;
-    border: 1px solid #ddd;
-}
-</style>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>AlertaCidade — Painel do gestor</title>
+
+    <link rel="stylesheet" href="assets/gestor.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
-<header>
-    <h1>AlertaCidade — Gestão</h1>
-    <a href="?sair=1">Sair do painel</a>
-</header>
-<main>
-    <h2>Indicadores</h2>
-    <div class="cards">
-        <div class="metric-card">
-            <span class="metric-label">Total de alertas</span>
-            <p class="metric-value"><?= $total ?></p>
-        </div>
-        <?php foreach ($statuses as $status): ?>
-            <div class="metric-card">
-                <span class="metric-label"><?= h($status) ?></span>
-                <p class="metric-value"><?= (int)($byStatus[$status] ?? 0) ?></p>
+    <header class="dashboard-header">
+        <h1>AlertaCidade — Gestão</h1>
+
+        <nav class="header-actions" aria-label="Ações do painel">
+            <a href="register.php">Cadastrar gestor</a>
+            <a class="logout-button" href="?sair=1">Sair do painel</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="card">
+            <h2>Filtros do painel</h2>
+            <form method="get" class="filters">
+                <div class="filter-field">
+                    <label for="category">Categoria</label>
+                    <select id="category" name="category">
+                        <option value="">Todas</option>
+                        <?php foreach ($categories as $category): ?>
+                            <option value="<?= h((string)$category) ?>"
+                                <?= $categoryFilter === $category ? 'selected' : '' ?>>
+                                <?= h((string)$category) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="filter-field">
+                    <label for="status">Status</label>
+                    <select id="status" name="status">
+                        <option value="">Todos</option>
+                        <?php foreach ($statuses as $status): ?>
+                            <option value="<?= h($status) ?>"
+                                <?= $statusFilter === $status ? 'selected' : '' ?>>
+                                <?= h($status) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="filter-field">
+                    <label for="date_from">A partir de</label>
+                    <input id="date_from" type="date" name="date_from"
+                        value="<?= h($dateFrom) ?>">
+                </div>
+
+                <div class="filter-field">
+                    <label for="date_to">Até</label>
+                    <input id="date_to" type="date" name="date_to"
+                        value="<?= h($dateTo) ?>">
+                </div>
+
+                <button type="submit">Aplicar filtros</button>
+                <a class="button secondary" href="index.php">Limpar</a>
+            </form>
+        </section>
+
+        <section class="cards">
+            <div class="metric">
+                <span class="metric-label">Alertas no filtro</span>
+                <span class="metric-value"><?= $total ?></span>
             </div>
-        <?php endforeach; ?>
-    </div>
 
-    <section class="card">
-        <h2>Alertas por categoria</h2>
-        <?php if (!$byCategory): ?>
-            <p style="color:var(--text-muted)">Sem dados de categorias ainda.</p>
-        <?php else: ?>
-            <div style="display:flex;gap:16px;flex-wrap:wrap">
-                <?php foreach ($byCategory as $row): ?>
-                    <div style="background:#f4f7f6;padding:8px 14px;border-radius:8px;font-size:13px">
-                        <strong><?= h($row['category']) ?></strong>: <span style="color:var(--accent);font-weight:700"><?= (int)$row['total'] ?></span>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        <?php endif; ?>
-    </section>
-
-    <section class="card">
-        <h2>Ocorrências cadastradas</h2>
-        <form method="get" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-            <label style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--text-muted)">Categoria:</label>
-            <select name="category">
-                <option value="">Todas</option>
-                <?php foreach ($categories as $category): ?>
-                    <option value="<?= h($category) ?>"
-                        <?= $categoryFilter === $category ? 'selected' : '' ?>>
-                        <?= h($category) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-
-            <label style="font-size:12px;font-weight:700;text-transform:uppercase;color:var(--text-muted)">Status:</label>
-            <select name="status">
-                <option value="">Todos</option>
-                <?php foreach ($statuses as $status): ?>
-                    <option value="<?= h($status) ?>"
-                        <?= $statusFilter === $status ? 'selected' : '' ?>>
-                        <?= h($status) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-            <button type="submit">Filtrar</button>
-        </form>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>Código</th><th>Foto</th><th>Ocorrência</th><th>Data de Registro</th><th>Categoria</th>
-                    <th>Local</th><th>Status</th><th>Atualizar</th>
-                </tr>
-            </thead>
-            <tbody>
-            <?php foreach ($alerts as $alert): ?>
-                <?php
-                $photos = $photosByAlert[$alert['id']] ?? [];
-                if (empty($photos) && !empty($alert['thumbnail_path'])) {
-                    $photos[] = [
-                        'thumbnail_path' => $alert['thumbnail_path'],
-                        'image_path'     => $alert['image_path'] ?? $alert['thumbnail_path'],
-                    ];
-                }
-                ?>
-                <tr>
-                    <td><strong><?= formatAlertCode((int)$alert['id']) ?></strong></td>
-                    <td>
-                        <div style="display:flex;gap:4px">
-                            <?php foreach ($photos as $photo): ?>
-                                <a href="../<?= h($photo['image_path'] ?? $photo['thumbnail_path']) ?>" target="_blank">
-                                    <img class="thumb" src="../<?= h($photo['thumbnail_path']) ?>"
-                                         loading="lazy" alt="Foto" style="width:50px;height:40px;object-fit:cover;border-radius:4px">
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
-                    </td>
-                    <td>
-                        <strong><?= h($alert['title']) ?></strong><br>
-                        <?= h(mb_strimwidth($alert['description'], 0, 100, '…', 'UTF-8')) ?>
-                    </td>
-                    <td><?= h(formatDateTime($alert['created_at'])) ?></td>
-                    <td><?= h($alert['category']) ?></td>
-                    <td><?= h($alert['address']) ?></td>
-                    <td><?= h($alert['status']) ?></td>
-                    <td>
-                        <form method="post">
-                            <?= csrfField() ?>
-                            <input type="hidden" name="update_status" value="1">
-                            <input type="hidden" name="alert_id" value="<?= (int)$alert['id'] ?>">
-                            <select name="status">
-                                <?php foreach ($statuses as $status): ?>
-                                    <option value="<?= h($status) ?>"
-                                        <?= $alert['status'] === $status ? 'selected' : '' ?>>
-                                        <?= h($status) ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                            <button>Salvar</button>
-                        </form>
-                    </td>
-                </tr>
+            <?php foreach ($statuses as $status): ?>
+                <div class="metric">
+                    <span class="metric-label"><?= h($status) ?></span>
+                    <span class="metric-value"><?= $byStatus[$status] ?></span>
+                </div>
             <?php endforeach; ?>
-            </tbody>
-        </table>
-    </section>
-</main>
-</body>
-</html>
 
+            <div class="metric">
+                <span class="metric-label">Com localização no mapa</span>
+                <span class="metric-value"><?= count($mapAlerts) ?></span>
+            </div>
+        </section>
+
+        <div class="grid">
+            <section class="card">
+                <h2>Alertas registrados por mês</h2>
+                <?php if (!$monthlyRows): ?>
+                    <p class="no-data">Não há dados para os filtros selecionados.</p>
+                <?php else: ?>
+                    <div class="chart-wrap"><canvas id="monthlyChart"></canvas></div>
+                <?php endif; ?>
+            </section>
+
+            <section class="card">
+                <h2>Alertas por categoria</h2>
+                <?php if (!$categoryLabels): ?>
+                    <p class="no-data">Não há dados para os filtros selecionados.</p>
+                <?php else: ?>
+                    <div class="chart-wrap"><canvas id="categoryChart"></canvas></div>
+                <?php endif; ?>
+            </section>
+        </div>
+
+        <section class="card">
+            <h2>Mapa de ocorrências</h2>
+            <p class="no-data">
+                <?= count($mapAlerts) ?> alerta(s) com coordenadas.
+                Se um alerta não aparecer, confira se latitude e longitude foram salvas no cadastro.
+            </p>
+            <div id="alerts-map"></div>
+        </section>
+
+        <section class="card">
+            <h2>Ocorrências cadastradas</h2>
+            <?php if (!$alerts): ?>
+                <p class="no-data">Nenhum alerta encontrado com esses filtros.</p>
+            <?php else: ?>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Ocorrência</th>
+                                <th>Data</th>
+                                <th>Categoria</th>
+                                <th>Local</th>
+                                <th>Status</th>
+                                <th>Atualizar status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($alerts as $alert): ?>
+                                <tr>
+                                    <td><strong><?= h(formatAlertCode((int)$alert['id'])) ?></strong></td>
+                                    <td class="description">
+                                        <strong><?= h((string)$alert['title']) ?></strong><br>
+                                        <?= h(mb_strimwidth(
+                                            (string)$alert['description'],
+                                            0,
+                                            140,
+                                            '…',
+                                            'UTF-8'
+                                        )) ?>
+                                    </td>
+                                    <td><?= h(formatDateTime((string)$alert['created_at'])) ?></td>
+                                    <td><?= h((string)$alert['category']) ?></td>
+                                    <td><?= h((string)$alert['address']) ?></td>
+                                    <td><?= h((string)$alert['status']) ?></td>
+                                    <td>
+                                        <form method="post" class="filter-row">
+                                            <?= csrfField() ?>
+                                            <input type="hidden" name="update_status" value="1">
+                                            <input type="hidden" name="alert_id"
+                                                value="<?= (int)$alert['id'] ?>">
+                                            <input type="hidden" name="return_query"
+                                                value="<?= h($filterQuery) ?>">
+                                            <select name="status" aria-label="Novo status">
+                                                <?php foreach ($statuses as $status): ?>
+                                                    <option value="<?= h($status) ?>"
+                                                        <?= $alert['status'] === $status ? 'selected' : '' ?>>
+                                                        <?= h($status) ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                            <button type="submit">Salvar</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </section>
+    </main>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const monthlyLabels = <?= json_encode(
+                                    $monthlyLabels,
+                                    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+                                ) ?>;
+
+        const monthlyTotals = <?= json_encode($monthlyTotals) ?>;
+
+        const categoryLabels = <?= json_encode(
+                                    $categoryLabels,
+                                    JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+                                ) ?>;
+
+        const categoryTotals = <?= json_encode($categoryTotals) ?>;
+
+        const alertsOnMap = <?= json_encode(
+                                $mapAlerts,
+                                JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT
+                            ) ?>;
+
+        if (document.getElementById('monthlyChart')) {
+            new Chart(document.getElementById('monthlyChart'), {
+                type: 'line',
+                data: {
+                    labels: monthlyLabels,
+                    datasets: [{
+                        label: 'Alertas',
+                        data: monthlyTotals,
+                        borderColor: '#126b53',
+                        backgroundColor: 'rgba(18, 107, 83, .12)',
+                        fill: true,
+                        tension: .25
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        if (document.getElementById('categoryChart')) {
+            new Chart(document.getElementById('categoryChart'), {
+                type: 'bar',
+                data: {
+                    labels: categoryLabels,
+                    datasets: [{
+                        label: 'Alertas',
+                        data: categoryTotals,
+                        backgroundColor: '#126b53'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        const map = L.map('alerts-map').setView([-14.235, -51.9253], 4);
+
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        const bounds = [];
+
+        alertsOnMap.forEach(alert => {
+            const marker = L.marker([alert.latitude, alert.longitude]).addTo(map);
+            const popup = document.createElement('div');
+
+            const title = document.createElement('strong');
+            title.textContent = `${alert.code} — ${alert.title}`;
+
+            const details = document.createElement('p');
+            details.textContent =
+                `${alert.category} · ${alert.status} · ${alert.address}`;
+
+            const streetView = document.createElement('a');
+            streetView.textContent = 'Abrir Google Maps / Street View';
+            streetView.href =
+                `https://www.google.com/maps?q=&layer=c&cbll=${alert.latitude},${alert.longitude}`;
+            streetView.target = '_blank';
+            streetView.rel = 'noopener noreferrer';
+
+            popup.append(title, details, streetView);
+            marker.bindPopup(popup);
+            bounds.push([alert.latitude, alert.longitude]);
+        });
+
+        if (bounds.length === 1) {
+            map.setView(bounds[0], 15);
+        } else if (bounds.length > 1) {
+            map.fitBounds(bounds, {
+                padding: [25, 25]
+            });
+        }
+    </script>
+</body>
+
+</html>

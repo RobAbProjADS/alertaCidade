@@ -1,21 +1,23 @@
 <?php
+
 declare(strict_types=1);
 
 session_start();
 
 $root = __DIR__;
 
-foreach ([
-    $root . '/data',
-    $root . '/storage/originals',
-    $root . '/storage/thumbnails',
-] as $dir) {
+foreach (
+    [
+        $root . '/data',
+        $root . '/storage/originals',
+        $root . '/storage/thumbnails',
+    ] as $dir
+) {
     if (!is_dir($dir)) {
         mkdir($dir, 0775, true);
     }
 }
 
-// Identificador persistente deste navegador.
 if (
     empty($_COOKIE['citizen_id']) ||
     !preg_match('/^[a-f0-9]{64}$/', $_COOKIE['citizen_id'])
@@ -30,7 +32,6 @@ if (
         'samesite' => 'Lax',
     ]);
 
-    // Disponibiliza o valor nesta mesma requisição.
     $_COOKIE['citizen_id'] = $citizenId;
 }
 
@@ -118,10 +119,16 @@ $pdo->exec("
 $pdo->exec("
     CREATE TABLE IF NOT EXISTS citizens (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT,
-        email TEXT NOT NULL UNIQUE,
-        cpf TEXT NOT NULL UNIQUE,
-        phone TEXT NOT NULL,
+        username TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+");
+
+$pdo->exec("
+    CREATE TABLE IF NOT EXISTS managers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
@@ -169,8 +176,8 @@ function calcularDistanciaKm(float $lat1, float $lng1, float $lat2, float $lng2)
     $dLat = deg2rad($lat2 - $lat1);
     $dLng = deg2rad($lng2 - $lng1);
     $a = sin($dLat / 2) * sin($dLat / 2) +
-         cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
-         sin($dLng / 2) * sin($dLng / 2);
+        cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+        sin($dLng / 2) * sin($dLng / 2);
     $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
     return $raioTerraKm * $c;
 }
@@ -205,7 +212,7 @@ function makeThumbnail(string $source, string $destination, int $maxSize = 480):
     if (!extension_loaded('gd')) {
         return false;
     }
-    
+
     $info = getimagesize($source);
     if (!$info) {
         return false;
@@ -232,10 +239,16 @@ function makeThumbnail(string $source, string $destination, int $maxSize = 480):
 
     $thumb = imagecreatetruecolor($newWidth, $newHeight);
     imagecopyresampled(
-        $thumb, $image,
-        0, 0, 0, 0,
-        $newWidth, $newHeight,
-        $width, $height
+        $thumb,
+        $image,
+        0,
+        0,
+        0,
+        0,
+        $newWidth,
+        $newHeight,
+        $width,
+        $height
     );
 
     $result = imagejpeg($thumb, $destination, 72);
@@ -249,12 +262,30 @@ function normalizarTexto(string $str): string
 {
     $str = mb_strtolower($str, 'UTF-8');
     $map = [
-        'á'=>'a', 'à'=>'a', 'ã'=>'a', 'â'=>'a', 'ä'=>'a',
-        'é'=>'e', 'è'=>'e', 'ê'=>'e', 'ë'=>'e',
-        'í'=>'i', 'ì'=>'i', 'î'=>'i', 'ï'=>'i',
-        'ó'=>'o', 'ò'=>'o', 'õ'=>'o', 'ô'=>'o', 'ö'=>'o',
-        'ú'=>'u', 'ù'=>'u', 'û'=>'u', 'ü'=>'u',
-        'ç'=>'c', 'ñ'=>'n',
+        'á' => 'a',
+        'à' => 'a',
+        'ã' => 'a',
+        'â' => 'a',
+        'ä' => 'a',
+        'é' => 'e',
+        'è' => 'e',
+        'ê' => 'e',
+        'ë' => 'e',
+        'í' => 'i',
+        'ì' => 'i',
+        'î' => 'i',
+        'ï' => 'i',
+        'ó' => 'o',
+        'ò' => 'o',
+        'õ' => 'o',
+        'ô' => 'o',
+        'ö' => 'o',
+        'ú' => 'u',
+        'ù' => 'u',
+        'û' => 'u',
+        'ü' => 'u',
+        'ç' => 'c',
+        'ñ' => 'n',
     ];
     $str = strtr($str, $map);
     $str = preg_replace('/[^\w\s]/u', ' ', $str) ?? $str;
@@ -273,88 +304,208 @@ function sugerirCategoria(string $texto, ?string $titulo = null): ?string
     $regras = [
         'Iluminação pública' => [
             'termos_fortes' => [
-                'luz apagada', 'poste caido', 'poste quebrado', 'poste sem luz',
-                'lampada queimada', 'lampada apagada', 'braco de luz', 'iluminacao publica',
-                'sem iluminacao', 'escuridao total', 'fiacao solta', 'fiacao partida',
+                'luz apagada',
+                'poste caido',
+                'poste quebrado',
+                'poste sem luz',
+                'lampada queimada',
+                'lampada apagada',
+                'braco de luz',
+                'iluminacao publica',
+                'sem iluminacao',
+                'escuridao total',
+                'fiacao solta',
+                'fiacao partida',
             ],
             'termos' => [
-                'poste', 'lampada', 'iluminacao', 'escuro', 'escuridao',
-                'luminaria', 'reator', 'apagada', 'fiacao', 'fio caido', 'blackout',
+                'poste',
+                'lampada',
+                'iluminacao',
+                'escuro',
+                'escuridao',
+                'luminaria',
+                'reator',
+                'apagada',
+                'fiacao',
+                'fio caido',
+                'blackout',
             ],
         ],
         'Buraco em via' => [
             'termos_fortes' => [
-                'buraco na via', 'buraco na rua', 'buraco na pista', 'cratera na pista',
-                'tapa buraco', 'asfalto afundando', 'via esburacada', 'rua esburacada',
-                'bueiro sem tampa', 'boca de lobo quebrada', 'lombada quebrada',
+                'buraco na via',
+                'buraco na rua',
+                'buraco na pista',
+                'cratera na pista',
+                'tapa buraco',
+                'asfalto afundando',
+                'via esburacada',
+                'rua esburacada',
+                'bueiro sem tampa',
+                'boca de lobo quebrada',
+                'lombada quebrada',
             ],
             'termos' => [
-                'buraco', 'asfalto', 'cratera', 'pavimento', 'pavimentacao',
-                'remendo', 'desnivel', 'afundamento', 'valeta', 'depressao',
-                'lombada', 'bueiro', 'boca de lobo', 'paralelepipedo',
+                'buraco',
+                'asfalto',
+                'cratera',
+                'pavimento',
+                'pavimentacao',
+                'remendo',
+                'desnivel',
+                'afundamento',
+                'valeta',
+                'depressao',
+                'lombada',
+                'bueiro',
+                'boca de lobo',
+                'paralelepipedo',
             ],
         ],
         'Descarte irregular de resíduos' => [
             'termos_fortes' => [
-                'lixo acumulado', 'descarte irregular', 'entulho na calcada',
-                'entulho na rua', 'resto de obra', 'resto de poda', 'sofa velho',
-                'lixao a ceu aberto', 'cacamba irregular',
+                'lixo acumulado',
+                'descarte irregular',
+                'entulho na calcada',
+                'entulho na rua',
+                'resto de obra',
+                'resto de poda',
+                'sofa velho',
+                'lixao a ceu aberto',
+                'cacamba irregular',
             ],
             'termos' => [
-                'lixo', 'entulho', 'residuo', 'descarte', 'lixeira', 'sujeira',
-                'cacamba', 'moveis', 'sofa', 'carcaca', 'bota fora',
+                'lixo',
+                'entulho',
+                'residuo',
+                'descarte',
+                'lixeira',
+                'sujeira',
+                'cacamba',
+                'moveis',
+                'sofa',
+                'carcaca',
+                'bota fora',
             ],
         ],
         'Calçada' => [
             'termos_fortes' => [
-                'calcada quebrada', 'calcada intransitavel', 'rampa de acessibilidade',
-                'piso tatil', 'pedestre sem passagem', 'meio fio quebrado',
+                'calcada quebrada',
+                'calcada intransitavel',
+                'rampa de acessibilidade',
+                'piso tatil',
+                'pedestre sem passagem',
+                'meio fio quebrado',
             ],
             'termos' => [
-                'calcada', 'calcadao', 'passeio', 'rampa', 'acessibilidade',
-                'guia', 'meio fio', 'sarjeta', 'lajota', 'pedra portuguesa',
+                'calcada',
+                'calcadao',
+                'passeio',
+                'rampa',
+                'acessibilidade',
+                'guia',
+                'meio fio',
+                'sarjeta',
+                'lajota',
+                'pedra portuguesa',
             ],
         ],
         'Sinalização' => [
             'termos_fortes' => [
-                'faixa de pedestre', 'semaforo quebrado', 'semaforo apagado',
-                'sinal apagado', 'placa caida', 'placa de pare', 'pintura de faixa',
-                'placa quebrada', 'placa pichada', 'sinalizacao apagada',
+                'faixa de pedestre',
+                'semaforo quebrado',
+                'semaforo apagado',
+                'sinal apagado',
+                'placa caida',
+                'placa de pare',
+                'pintura de faixa',
+                'placa quebrada',
+                'placa pichada',
+                'sinalizacao apagada',
             ],
             'termos' => [
-                'placa', 'semaforo', 'sinalizacao', 'sinal', 'faixa',
-                'radar', 'cone', 'tartaruga', 'prisma', 'pare',
+                'placa',
+                'semaforo',
+                'sinalizacao',
+                'sinal',
+                'faixa',
+                'radar',
+                'cone',
+                'tartaruga',
+                'prisma',
+                'pare',
             ],
         ],
         'Árvores e áreas verdes' => [
             'termos_fortes' => [
-                'arvore caida', 'galho quebrado', 'galho caido', 'poda de arvore',
-                'arvore em risco', 'mato alto', 'praca abandonada',
+                'arvore caida',
+                'galho quebrado',
+                'galho caido',
+                'poda de arvore',
+                'arvore em risco',
+                'mato alto',
+                'praca abandonada',
             ],
             'termos' => [
-                'arvore', 'galho', 'tronco', 'poda', 'raiz', 'mato',
-                'matagal', 'capina', 'folhagem', 'canteiro', 'praca',
+                'arvore',
+                'galho',
+                'tronco',
+                'poda',
+                'raiz',
+                'mato',
+                'matagal',
+                'capina',
+                'folhagem',
+                'canteiro',
+                'praca',
             ],
         ],
         'Água e esgoto' => [
             'termos_fortes' => [
-                'vazamento de agua', 'vazamento de esgoto', 'cano estourado',
-                'agua vazando', 'esgoto a ceu aberto', 'esgoto correndo',
-                'bueiro entupido', 'agua servida',
+                'vazamento de agua',
+                'vazamento de esgoto',
+                'cano estourado',
+                'agua vazando',
+                'esgoto a ceu aberto',
+                'esgoto correndo',
+                'bueiro entupido',
+                'agua servida',
             ],
             'termos' => [
-                'vazamento', 'esgoto', 'cano', 'tubulacao', 'infiltracao',
-                'sabesp', 'alegamento', 'mau cheiro', 'bueiro', 'poca',
+                'vazamento',
+                'esgoto',
+                'cano',
+                'tubulacao',
+                'infiltracao',
+                'sabesp',
+                'alegamento',
+                'mau cheiro',
+                'bueiro',
+                'poca',
             ],
         ],
         'Zoonoses e animais' => [
             'termos_fortes' => [
-                'maus tratos', 'animal abandonado', 'animal ferido',
-                'foco de dengue', 'agua parada', 'infestacao de insetos',
+                'maus tratos',
+                'animal abandonado',
+                'animal ferido',
+                'foco de dengue',
+                'agua parada',
+                'infestacao de insetos',
             ],
             'termos' => [
-                'animal', 'animais', 'cachorro', 'cao', 'gato', 'cavalo',
-                'zoonose', 'dengue', 'escorpiao', 'carrapato', 'morcego', 'rato',
+                'animal',
+                'animais',
+                'cachorro',
+                'cao',
+                'gato',
+                'cavalo',
+                'zoonose',
+                'dengue',
+                'escorpiao',
+                'carrapato',
+                'morcego',
+                'rato',
             ],
         ],
     ];
@@ -405,4 +556,3 @@ function redirect(string $url): never
     header('Location: ' . $url);
     exit;
 }
-
