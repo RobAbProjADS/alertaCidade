@@ -46,14 +46,23 @@ Antes de instalar, verifique se você possui:
 ​​     #
    ```
 
-3. Inicie o servidor local PHP:
+3. a)Inicie o servidor local PHP como cidadão:
 
    ```bash
    ALERTACIDADE_ADMIN_PASSWORD='troque-esta-senha' php -S localhost:8089
 
+b)Inicie o servidor local PHP como gestor:
+
+   ```bash
+   ALERTACIDADE_SETUP_TOKEN="coloque-um-token-longo-aqui" php -S localhost:8081
+
+para validar a criação do usuário precisa colocar no campo token: coloque-um-token-longo-aqui
+
+
    ```
 
-4. Acesse [http://localhost:8089](http://localhost:8089) no navegador.
+4. Acesse usuário [http://localhost:8089](http://localhost:8089) no navegador.
+   Acesse gestor [http://localhost:8081](http://localhost:8081) no navegador.
 
 ## Colaboradores
 
@@ -80,26 +89,32 @@ Inclua os diagramas UML relevantes para documentar a estrutura e o comportamento
 
 ```mermaid
 classDiagram
-    class Usuario {
-        +nome
+    class citizens {
+        +id
+        +name
         +email
         +cpf
-        +telefone
-        +senha
-        +consultarInformacoes()
+        +phone
+        +password
+        +CREATE
+        
     }
 
-    class registrar {
-        +titulo
-        +descricao
-        +categoria
-        +endereco
-        +geolocalizacao
-        +imagem      
-
+    class alerts {
+        +id
+        +title
+        +description
+        +category
+        +adress
+        +latitude Real     
+        +longitude REAL
+        +image
+        +author
+        +RECEBIDO
+ 
     }
 
-    Usuario "1" --> "0..*" registrar : consulta
+    
 ```
 
 ## Como contribuir
