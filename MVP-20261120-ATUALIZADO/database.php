@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-session_start();
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
 
 $root = __DIR__;
 
@@ -140,6 +142,119 @@ $columns = $pdo->query('PRAGMA table_info(alerts)')
 
 if (!in_array('owner_id', $columns, true)) {
     $pdo->exec('ALTER TABLE alerts ADD COLUMN owner_id TEXT');
+}
+
+$adminExists = $pdo->prepare('SELECT id FROM managers WHERE username = ?');
+$adminExists->execute(['admin']);
+if (!$adminExists->fetch()) {
+    $insertAdmin = $pdo->prepare(
+        'INSERT INTO managers (username, password_hash) VALUES (?, ?)'
+    );
+    $insertAdmin->execute([
+        'admin',
+        '$2y$12$Njp2kpoZRglTHnjWAR19IOTlTabbuZlCg0cava2e6ixxXk.a43cnG',
+    ]);
+}
+
+$placeholderAlerts = [
+    [
+        'Buraco na Av. Paulista, altura do MASP',
+        'Cratera no asfalto ocupando a faixa da direita. Motoristas desviam em cima da faixa de ônibus.',
+        'Buraco em via',
+        'Avenida Paulista, São Paulo - SP',
+        -23.5614,
+        -46.6558,
+        'Em análise',
+        '2026-09-03 14:10:00',
+    ],
+    [
+        'Poste sem luz na Praça da Sé',
+        'Dois postes da praça estão apagados desde a semana passada. A área fica escura depois das 19h.',
+        'Iluminação pública',
+        'Praça da Sé, São Paulo - SP',
+        -23.5504,
+        -46.6339,
+        'Recebido',
+        '2026-10-18 21:05:00',
+    ],
+    [
+        'Entulho na calçada da Rua Augusta',
+        'Restos de obra e um sofá bloqueiam a passagem de pedestres na calçada.',
+        'Descarte irregular de resíduos',
+        'Rua Augusta, 1200, São Paulo - SP',
+        -23.5587,
+        -46.6612,
+        'Em atendimento',
+        '2026-11-02 11:40:00',
+    ],
+    [
+        'Calçada quebrada em frente à escola',
+        'Lajotas soltas e um degrau alto na frente da escola municipal. Crianças e idosos tropeçam.',
+        'Calçada',
+        'Rua Harmonia, 450, São Paulo - SP',
+        -23.5462,
+        -46.6891,
+        'Resolvido',
+        '2026-08-21 09:15:00',
+    ],
+    [
+        'Semáforo apagado no cruzamento da Consolação',
+        'O semáforo do cruzamento está apagado nos dois sentidos. O trânsito para no pico.',
+        'Sinalização',
+        'Rua da Consolação com Av. Paulista, São Paulo - SP',
+        -23.5568,
+        -46.6606,
+        'Recebido',
+        '2026-11-15 08:20:00',
+    ],
+    [
+        'Vazamento de água na Rua da Consolação',
+        'Água jorrando da tubulação na sarjeta há dois dias. A pista fica alagada.',
+        'Água e esgoto',
+        'Rua da Consolação, 2100, São Paulo - SP',
+        -23.5531,
+        -46.6634,
+        'Em análise',
+        '2026-07-09 16:45:00',
+    ],
+];
+
+$alertExists = $pdo->prepare('SELECT id FROM alerts WHERE title = ?');
+$insertAlert = $pdo->prepare('
+    INSERT INTO alerts (
+        title, description, category, address,
+        latitude, longitude, author, status, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+');
+$insertHistory = $pdo->prepare('
+    INSERT INTO status_history (alert_id, status, changed_by, created_at)
+    VALUES (?, ?, ?, ?)
+');
+
+foreach ($placeholderAlerts as $alert) {
+    $alertExists->execute([$alert[0]]);
+    if ($alertExists->fetch()) {
+        continue;
+    }
+
+    $insertAlert->execute([
+        $alert[0],
+        $alert[1],
+        $alert[2],
+        $alert[3],
+        $alert[4],
+        $alert[5],
+        'Cidadão',
+        $alert[6],
+        $alert[7],
+    ]);
+
+    $insertHistory->execute([
+        (int)$pdo->lastInsertId(),
+        $alert[6],
+        'Sistema',
+        $alert[7],
+    ]);
 }
 
 if (empty($_SESSION['csrf'])) {

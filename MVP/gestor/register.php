@@ -22,11 +22,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = (string)($_POST['password'] ?? '');
     $submittedToken = (string)($_POST['setup_token'] ?? '');
 
-    $authorized = $isManager
-        || ($initialSetup && hash_equals($setupToken, $submittedToken));
+    $tokenOk = $setupToken !== '' && hash_equals($setupToken, $submittedToken);
 
-    if (!$authorized) {
+    if ($setupToken === '') {
+        $error = 'Inicie o servidor com ALERTACIDADE_SETUP_TOKEN para cadastrar gestores.';
+    } elseif (!$isManager && !$initialSetup) {
         $error = 'Você não tem autorização para cadastrar gestores.';
+    } elseif (!$tokenOk) {
+        $error = 'Token de configuração inválido.';
     } elseif (!preg_match('/^[a-zA-Z0-9_.-]{3,50}$/', $username)) {
         $error = 'O usuário deve ter de 3 a 50 caracteres: letras, números, ponto, hífen ou sublinhado.';
     } elseif (strlen($password) < 12) {
@@ -118,7 +121,7 @@ endif;
 
         <?php if ($success !== ''): ?>
             <p class="success"><?= h($success) ?></p>
-            <p><a class="link" href="<?= $isManager ? 'painel.php' : 'index.php' ?>">
+            <p><a class="link" href="index.php">
                     <?= $isManager ? 'Voltar ao painel' : 'Ir para o login' ?>
                 </a></p>
         <?php else: ?>
@@ -144,21 +147,19 @@ endif;
                     required
                     autocomplete="new-password">
 
-                <?php if ($initialSetup && !$isManager): ?>
-                    <label for="setup_token">Token de configuração</label>
-                    <input
-                        id="setup_token"
-                        name="setup_token"
-                        type="password"
-                        required
-                        autocomplete="off">
-                <?php endif; ?>
+                <label for="setup_token">Token de configuração</label>
+                <input
+                    id="setup_token"
+                    name="setup_token"
+                    type="password"
+                    required
+                    autocomplete="off">
 
                 <button type="submit">Cadastrar gestor</button>
             </form>
 
             <?php if ($isManager): ?>
-                <p><a class="link" href="painel.php">Voltar ao painel</a></p>
+                <p><a class="link" href="index.php">Voltar ao painel</a></p>
             <?php else: ?>
                 <p><a class="link" href="index.php">Voltar ao login</a></p>
             <?php endif; ?>

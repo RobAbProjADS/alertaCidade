@@ -191,7 +191,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($error === '') {
                     $primaryThumb = $uploadedPhotos[0]['thumbnail_path'] ?? null;
                     $primaryImage = $uploadedPhotos[0]['image_path'] ?? null;
-                    $authorName = $loggedUser['name'] ?: 'Cidadão';
+                    $authorName = trim((string)($loggedUser['username'] ?? ''));
+                    if ($authorName === '') {
+                        $authorName = 'Cidadão';
+                    }
                     $ownerId = (string)$loggedUser['id'];
 
                     $stmt = $pdo->prepare("

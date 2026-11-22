@@ -1,0 +1,12 @@
+{
+    "name": "alertacidade/alertacidade",
+    "description": "Plataforma de participação cidadã e acompanhamento de ocorrências urbanas.",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.0"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
