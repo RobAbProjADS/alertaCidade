@@ -123,9 +123,31 @@ $pdo->exec("
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT NOT NULL,
         password_hash TEXT NOT NULL,
+        name TEXT,
+        email TEXT,
+        phone TEXT,
+        cpf TEXT,
+        address_info TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
 ");
+
+$citizenColumns = $pdo->query('PRAGMA table_info(citizens)')
+    ->fetchAll(PDO::FETCH_COLUMN, 1);
+
+$citizenMigrations = [
+    'name' => 'ALTER TABLE citizens ADD COLUMN name TEXT',
+    'email' => 'ALTER TABLE citizens ADD COLUMN email TEXT',
+    'phone' => 'ALTER TABLE citizens ADD COLUMN phone TEXT',
+    'cpf' => 'ALTER TABLE citizens ADD COLUMN cpf TEXT',
+    'address_info' => 'ALTER TABLE citizens ADD COLUMN address_info TEXT',
+];
+
+foreach ($citizenMigrations as $col => $migrationSql) {
+    if (!in_array($col, $citizenColumns, true)) {
+        $pdo->exec($migrationSql);
+    }
+}
 
 $pdo->exec("
     CREATE TABLE IF NOT EXISTS managers (
@@ -135,14 +157,6 @@ $pdo->exec("
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
 ");
-
-// Atualiza bancos SQLite que já existiam antes da coluna owner_id.
-$columns = $pdo->query('PRAGMA table_info(alerts)')
-    ->fetchAll(PDO::FETCH_COLUMN, 1);
-
-if (!in_array('owner_id', $columns, true)) {
-    $pdo->exec('ALTER TABLE alerts ADD COLUMN owner_id TEXT');
-}
 
 $adminExists = $pdo->prepare('SELECT id FROM managers WHERE username = ?');
 $adminExists->execute(['admin']);
@@ -304,6 +318,74 @@ function formatarDistancia(float $km): string
         return $metros . ' m de você';
     }
     return number_format($km, 1, ',', '.') . ' km de você';
+}
+
+function obterDadosProgressoStatus(string $status): array
+{
+    $etapas = ['Recebido', 'Em análise', 'Em atendimento', 'Resolvido'];
+    $indice = array_search($status, $etapas, true);
+    if ($indice === false) {
+        $indice = 0;
+    }
+
+    $percentual = (int)(($indice + 1) * 25);
+
+    $cores = match ($indice) {
+        0 => ['cor' => '#5a6e66', 'bg' => '#e8f0ed'],
+        1 => ['cor' => '#b26b00', 'bg' => '#fff3db'],
+        2 => ['cor' => '#0b5ed7', 'bg' => '#e6f0ff'],
+        3 => ['cor' => '#126b53', 'bg' => '#d8f3e9'],
+        default => ['cor' => '#5a6e66', 'bg' => '#e8f0ed'],
+    };
+
+    return [
+        'etapas' => $etapas,
+        'indice_atual' => $indice,
+        'etapa_numero' => $indice + 1,
+        'total_etapas' => count($etapas),
+        'percentual' => $percentual,
+        'cor' => $cores['cor'],
+        'bg' => $cores['bg'],
+    ];
+}
+
+function obterNivelCriticidade(int $supportCount): array
+{
+    if ($supportCount >= 10) {
+        return [
+            'nivel' => 'Crítica',
+            'icone' => '🔴',
+            'cor' => '#9b2215',
+            'bg' => '#fde2e2',
+            'ordem' => 4,
+        ];
+    }
+    if ($supportCount >= 5) {
+        return [
+            'nivel' => 'Alta',
+            'icone' => '🟠',
+            'cor' => '#c75100',
+            'bg' => '#ffe5d0',
+            'ordem' => 3,
+        ];
+    }
+    if ($supportCount >= 2) {
+        return [
+            'nivel' => 'Média',
+            'icone' => '🟡',
+            'cor' => '#b26b00',
+            'bg' => '#fff3db',
+            'ordem' => 2,
+        ];
+    }
+
+    return [
+        'nivel' => 'Baixa',
+        'icone' => '🟢',
+        'cor' => '#126b53',
+        'bg' => '#e3f5ec',
+        'ordem' => 1,
+    ];
 }
 
 function csrfField(): string
@@ -664,6 +746,106 @@ function sugerirCategoria(string $texto, ?string $titulo = null): ?string
 
     arsort($scores);
     return array_key_first($scores);
+}
+
+function obterPalavrasSensiveis(): array
+{
+    return [
+        // 1. Violência e Crimes contra a Pessoa
+        'violencia',
+        'agressao',
+        'agredido',
+        'espancamento',
+        'briga',
+        'assalto',
+        'tiroteio',
+        'tiro',
+        'arma',
+        'faca',
+        'esfaqueamento',
+        'homicidio',
+        'assassinato',
+        'sequestro',
+        'ameaca',
+        'linchamento',
+
+        // 2. Maus-tratos, Ferimentos Graves e Óbito (Pessoas ou Animais)
+        'maus tratos',
+        'mal tratos',
+        'crueldade',
+        'tortura',
+        'sangue',
+        'sangramento',
+        'ferido',
+        'machucado grave',
+        'mutilado',
+        'morto',
+        'cadaver',
+        'corpo',
+        'obito',
+        'atropelamento',
+        'atropelado',
+        'envenenado',
+        'envenenamento',
+        'animal morto',
+        'carcaca',
+
+        // 3. Abuso, Nudez e Conteúdo Sexual / Impróprio
+        'abuso',
+        'assedio',
+        'estupro',
+        'importunacao',
+        'nudez',
+        'nu',
+        'pelado',
+        'sexo',
+        'sexual',
+        'pornografia',
+        'obsceno',
+        'atentado ao pudor',
+        'prostituicao',
+        'exploracao',
+
+        // 4. Vulnerabilidade, Menores e Autolesão
+        'suicidio',
+        'automutilacao',
+        'overdose',
+        'crianca',
+        'menor',
+        'bebe abandonado',
+        'abandono de incapaz',
+
+        // 5. Acidentes Graves
+        'acidente grave',
+        'vitima fatal',
+        'carbonizado',
+        'afogamento',
+        'soterramento',
+
+        // 6. Símbolos de Ódio e Ofensas Graves
+        'racismo',
+        'nazismo',
+        'suastica',
+        'homofobia',
+        'xenofobia',
+        'pedofilia',
+    ];
+}
+
+function detectarPalavraSensivel(string $texto, ?string $titulo = null): ?string
+{
+    $combinado = trim(($titulo ? normalizarTexto($titulo) : '') . ' ' . normalizarTexto($texto));
+    if ($combinado === '') {
+        return null;
+    }
+
+    foreach (obterPalavrasSensiveis() as $termo) {
+        if (preg_match('/\b' . preg_quote($termo, '/') . '\b/u', $combinado)) {
+            return $termo;
+        }
+    }
+
+    return null;
 }
 
 function redirect(string $url): never

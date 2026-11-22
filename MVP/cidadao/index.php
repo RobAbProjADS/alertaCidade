@@ -2,15 +2,7 @@
 
 declare(strict_types=1);
 
-session_start();
-
 require dirname(__DIR__) . '/database.php';
-
-if (empty($_SESSION['citizen'])) {
-    $_SESSION['citizen'] = bin2hex(random_bytes(16));
-}
-
-$citizenId = $_SESSION['citizen'];
 
 if (isset($_GET['logout'])) {
     unset($_SESSION['citizen_user']);
@@ -41,21 +33,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'login') {
-        $username = trim((string)($_POST['username'] ?? ''));
+        $loginInput = trim((string)($_POST['username'] ?? $_POST['login'] ?? ''));
         $password = (string)($_POST['password'] ?? '');
+        $digitsOnly = preg_replace('/\D/', '', $loginInput) ?? '';
 
         $stmtUser = $pdo->prepare(
-            'SELECT id, username, password_hash FROM citizens WHERE username = ?'
+            "SELECT id, username, password_hash, name, email, phone, cpf, address_info
+             FROM citizens
+             WHERE LOWER(username) = LOWER(:ident)
+                OR (name IS NOT NULL AND TRIM(name) != '' AND LOWER(TRIM(name)) = LOWER(:ident))
+                OR (email IS NOT NULL AND TRIM(email) != '' AND LOWER(TRIM(email)) = LOWER(:ident))
+                OR (cpf IS NOT NULL AND TRIM(cpf) != '' AND (
+                    TRIM(cpf) = :ident
+                    OR (:digits != '' AND REPLACE(REPLACE(REPLACE(TRIM(cpf), '.', ''), '-', ''), ' ', '') = :digits)
+                ))
+             ORDER BY id DESC"
         );
-        $stmtUser->execute([$username]);
-        $user = $stmtUser->fetch(PDO::FETCH_ASSOC);
+        $stmtUser->execute([
+            'ident' => $loginInput,
+            'digits' => $digitsOnly,
+        ]);
+        $candidates = $stmtUser->fetchAll(PDO::FETCH_ASSOC);
 
-        if ($user && password_verify($password, $user['password_hash'])) {
+        $matchedUser = null;
+        foreach ($candidates as $candidate) {
+            if (password_verify($password, (string)$candidate['password_hash'])) {
+                $matchedUser = $candidate;
+                break;
+            }
+        }
+
+        if ($matchedUser) {
             session_regenerate_id(true);
 
             $_SESSION['citizen_user'] = [
-                'id' => (int)$user['id'],
-                'username' => $user['username'],
+                'id' => (int)$matchedUser['id'],
+                'username' => $matchedUser['username'],
+                'name' => (string)($matchedUser['name'] ?? ''),
+                'email' => (string)($matchedUser['email'] ?? ''),
+                'phone' => (string)($matchedUser['phone'] ?? ''),
+                'cpf' => (string)($matchedUser['cpf'] ?? ''),
+                'address_info' => (string)($matchedUser['address_info'] ?? ''),
             ];
 
             $redirectTo = !empty($_POST['redirect_to'])
@@ -64,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             redirect($redirectTo);
         } else {
-            $authError = 'Usuário ou senha incorretos.';
+            $authError = 'Nome/usuário, e-mail, CPF ou senha incorretos.';
             $activeAuthTab = 'login';
         }
     }
@@ -72,9 +90,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'register') {
         $username = trim((string)($_POST['username'] ?? ''));
         $password = (string)($_POST['password'] ?? '');
+        $name = trim((string)($_POST['name'] ?? ''));
+        $email = trim((string)($_POST['email'] ?? ''));
+        $phone = trim((string)($_POST['phone'] ?? ''));
+        $cpf = trim((string)($_POST['cpf'] ?? ''));
+        $addressInfo = trim((string)($_POST['address_info'] ?? ''));
 
-        if (!preg_match('/^[a-zA-Z0-9_]{3,30}$/', $username)) {
-            $authError = 'O usuário deve ter de 3 a 30 caracteres: letras, números ou _.';
+        if (!preg_match('/^[a-zA-Z0-9_]{3,32}$/', $username)) {
+            $authError = 'O usuário deve ter de 3 a 32 caracteres: letras, números ou _.';
             $activeAuthTab = 'register';
         } elseif (strlen($password) < 8) {
             $authError = 'A senha deve ter no mínimo 8 caracteres.';
@@ -90,14 +113,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $hash = password_hash($password, PASSWORD_DEFAULT);
 
                 $insert = $pdo->prepare(
-                    'INSERT INTO citizens (username, password_hash) VALUES (?, ?)'
+                    'INSERT INTO citizens (username, password_hash, name, email, phone, cpf, address_info) VALUES (?, ?, ?, ?, ?, ?, ?)'
                 );
-                $insert->execute([$username, $hash]);
+                $insert->execute([$username, $hash, $name, $email, $phone, $cpf, $addressInfo]);
 
                 session_regenerate_id(true);
                 $_SESSION['citizen_user'] = [
                     'id' => (int)$pdo->lastInsertId(),
                     'username' => $username,
+                    'name' => $name,
+                    'email' => $email,
+                    'phone' => $phone,
+                    'cpf' => $cpf,
+                    'address_info' => $addressInfo,
                 ];
 
                 $redirectTo = !empty($_POST['redirect_to'])
@@ -107,6 +135,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 redirect($redirectTo);
             }
         }
+    }
+
+    if ($action === 'update_profile' && $isLoggedIn) {
+        $name = trim((string)($_POST['name'] ?? ''));
+        $email = trim((string)($_POST['email'] ?? ''));
+        $phone = trim((string)($_POST['phone'] ?? ''));
+        $cpf = trim((string)($_POST['cpf'] ?? ''));
+        $addressInfo = trim((string)($_POST['address_info'] ?? ''));
+
+        $upd = $pdo->prepare(
+            'UPDATE citizens SET name = ?, email = ?, phone = ?, cpf = ?, address_info = ? WHERE id = ?'
+        );
+        $upd->execute([$name, $email, $phone, $cpf, $addressInfo, (int)$loggedUser['id']]);
+
+        $_SESSION['citizen_user']['name'] = $name;
+        $_SESSION['citizen_user']['email'] = $email;
+        $_SESSION['citizen_user']['phone'] = $phone;
+        $_SESSION['citizen_user']['cpf'] = $cpf;
+        $_SESSION['citizen_user']['address_info'] = $addressInfo;
+
+        redirect('index.php?profile_saved=1');
     }
 
     if ($action === 'create') {
@@ -130,7 +179,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Coordenadas inválidas.';
             } else {
                 $uploadedPhotos = [];
-                $photosInput = $_FILES['photos'] ?? $_FILES['photo'] ?? null;
+                $sensitiveTermDetected = detectarPalavraSensivel($description, $title);
+                $photosInput = ($sensitiveTermDetected === null)
+                    ? ($_FILES['photos'] ?? $_FILES['photo'] ?? null)
+                    : null;
 
                 if ($photosInput && !empty($photosInput['name'])) {
                     $names = is_array($photosInput['name']) ? $photosInput['name'] : [$photosInput['name']];
@@ -253,14 +305,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = filter_input(INPUT_POST, 'alert_id', FILTER_VALIDATE_INT);
 
         if ($id) {
-            $supporterId = $isLoggedIn ? 'user_' . $loggedUser['id'] : $_SESSION['citizen'];
+            $supporterId = $isLoggedIn ? 'user_' . $loggedUser['id'] : $citizenId;
             $stmt = $pdo->prepare(
                 'INSERT OR IGNORE INTO supports (alert_id, supporter) VALUES (?, ?)'
             );
             $stmt->execute([$id, $supporterId]);
         }
 
-        redirect('index.php');
+        $qs = trim((string)($_SERVER['QUERY_STRING'] ?? ''));
+        redirect($qs !== '' ? 'index.php?' . $qs : 'index.php');
     }
 }
 
@@ -328,12 +381,19 @@ if ($isGeoFilterActive) {
 
 $alertIds = array_column($alerts, 'id');
 $photosByAlert = [];
+$latestStatusByAlert = [];
 if (!empty($alertIds)) {
     $in = implode(',', array_fill(0, count($alertIds), '?'));
     $stmtPhotos = $pdo->prepare("SELECT * FROM alert_photos WHERE alert_id IN ($in) ORDER BY id ASC");
     $stmtPhotos->execute($alertIds);
     foreach ($stmtPhotos->fetchAll(PDO::FETCH_ASSOC) as $p) {
         $photosByAlert[$p['alert_id']][] = $p;
+    }
+
+    $stmtHist = $pdo->prepare("SELECT alert_id, status, changed_by, created_at FROM status_history WHERE alert_id IN ($in) ORDER BY id ASC");
+    $stmtHist->execute($alertIds);
+    foreach ($stmtHist->fetchAll(PDO::FETCH_ASSOC) as $hRow) {
+        $latestStatusByAlert[(int)$hRow['alert_id']] = $hRow;
     }
 }
 ?>
@@ -343,7 +403,7 @@ if (!empty($alertIds)) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title> AlertaCidade — Cidadão</title>
+    <title>🚨 AlertaCidade — Cidadão</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚨</text></svg>">
     <style>
         :root {
@@ -593,12 +653,124 @@ if (!empty($alertIds)) {
             color: #2d554a;
         }
 
+        .status-progress-box {
+            background: #f7faf9;
+            border: 1px solid #e3ece8;
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin: 12px 0;
+        }
+
+        .status-progress-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .status-progress-track {
+            width: 100%;
+            height: 8px;
+            background: #dfe9e5;
+            border-radius: 999px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .status-progress-fill {
+            height: 100%;
+            border-radius: 999px;
+            transition: width 0.35s ease;
+        }
+
+        .status-steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+            font-size: 11px;
+        }
+
+        .status-step {
+            text-align: center;
+            color: #879c94;
+            font-weight: 500;
+            padding: 2px 4px;
+            border-radius: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .status-step.done {
+            color: #126b53;
+            font-weight: 600;
+        }
+
+        .status-step.current {
+            color: #18312a;
+            font-weight: 700;
+            background: #e8f2ee;
+        }
+
         .error {
             color: #9b2215;
             background: #fdeeee;
             border: 1px solid #f9cccc;
             padding: 10px 14px;
             border-radius: 8px;
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 35, 29, 0.62);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .modal-overlay.open {
+            display: flex;
+        }
+
+        .modal-box {
+            background: #ffffff;
+            border-radius: 14px;
+            max-width: 520px;
+            width: 100%;
+            padding: 24px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+            border: 1px solid var(--border);
+            max-height: 92vh;
+            overflow-y: auto;
+        }
+
+        .mvp-notice {
+            background: #eef7f4;
+            border: 1px solid #b8dcd0;
+            border-left: 4px solid var(--primary);
+            color: #16493a;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.45;
+            margin-bottom: 14px;
+        }
+
+        .field-mvp-hint {
+            display: block;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: 0;
+            color: #126b53;
+            margin-top: 2px;
         }
     </style>
     <?php if ($showCreate): ?>
@@ -612,7 +784,8 @@ if (!empty($alertIds)) {
             <h1 style="margin:0">AlertaCidade</h1>
             <div style="font-size:13px;display:flex;align-items:center;gap:12px">
                 <?php if ($isLoggedIn): ?>
-                    <span>👤 Olá, <strong><?= h($loggedUser['username']) ?></strong></span>
+                    <span>👤 Olá, <strong><?= h($loggedUser['name'] ?: $loggedUser['username']) ?></strong></span>
+                    <button type="button" id="btn-open-profile-modal" style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer">Dados cadastrais</button>
                     <a href="index.php?logout=1" style="color:rgba(255,255,255,0.9);text-decoration:underline;font-size:13px">Sair</a>
                 <?php else: ?>
                     <a href="index.php?auth=1" style="color:#fff;background:rgba(255,255,255,0.18);padding:5px 12px;border-radius:6px;text-decoration:none;font-weight:600">Entrar / Cadastrar</a>
@@ -626,7 +799,97 @@ if (!empty($alertIds)) {
         </nav>
     </header>
 
+    <?php if ($isLoggedIn): ?>
+        <div id="profile-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
+            <div class="modal-box">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                    <h2 id="profile-modal-title" style="margin:0;font-size:18px">Dados cadastrais do usuário</h2>
+                    <button type="button" id="btn-close-profile-modal" style="background:none;border:0;color:var(--text-muted);font-size:18px;padding:4px 8px;cursor:pointer">✕</button>
+                </div>
+
+                <div class="mvp-notice">
+                    <strong>Aviso de MVP:</strong> Não é preciso informar dados pessoais reais ou sensíveis, pois este sistema é um MVP. Você pode preencher com <strong>dados fictícios</strong>.
+                </div>
+
+                <form method="post">
+                    <?= csrfField() ?>
+                    <input type="hidden" name="action" value="update_profile">
+
+                    <label for="prof_name">
+                        Nome completo
+                        <span class="field-mvp-hint">Não é preciso adicionar dado sensível (MVP) — aceita nome fictício</span>
+                    </label>
+                    <input id="prof_name" name="name" value="<?= h((string)($loggedUser['name'] ?? '')) ?>" placeholder="Ex.: Maria Silva Fictícia (dado fictício)">
+
+                    <label for="prof_email">
+                        E-mail
+                        <span class="field-mvp-hint">Não é preciso adicionar e-mail real/sensível (MVP) — aceita e-mail fictício</span>
+                    </label>
+                    <input id="prof_email" type="text" name="email" value="<?= h((string)($loggedUser['email'] ?? '')) ?>" placeholder="Ex.: usuario.ficticio@mvp.teste">
+
+                    <label for="prof_phone">
+                        Telefone / Celular
+                        <span class="field-mvp-hint">Não é preciso adicionar telefone real/sensível (MVP) — aceita número fictício</span>
+                    </label>
+                    <input id="prof_phone" name="phone" value="<?= h((string)($loggedUser['phone'] ?? '')) ?>" placeholder="Ex.: (11) 90000-0000 (dado fictício)">
+
+                    <label for="prof_cpf">
+                        CPF / Documento (Dados cadastrais)
+                        <span class="field-mvp-hint">Não é preciso adicionar CPF real/sensível (MVP) — aceita número fictício</span>
+                    </label>
+                    <input id="prof_cpf" name="cpf" value="<?= h((string)($loggedUser['cpf'] ?? '')) ?>" placeholder="Ex.: 000.000.000-00 (dado fictício)">
+
+                    <label for="prof_address_info">
+                        Bairro / Cidade (Dados cadastrais)
+                        <span class="field-mvp-hint">Não é preciso adicionar endereço sensível (MVP) — aceita dado fictício</span>
+                    </label>
+                    <input id="prof_address_info" name="address_info" value="<?= h((string)($loggedUser['address_info'] ?? '')) ?>" placeholder="Ex.: Centro - Cidade Fictícia">
+
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+                        <button type="button" id="btn-fill-fictitious-prof" class="btn btn-secondary" style="flex:1">Preencher dados fictícios</button>
+                        <button type="submit" class="btn" style="flex:1">Salvar dados</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script>
+            (function() {
+                const modal = document.getElementById('profile-modal');
+                const btnOpen = document.getElementById('btn-open-profile-modal');
+                const btnClose = document.getElementById('btn-close-profile-modal');
+                const btnFill = document.getElementById('btn-fill-fictitious-prof');
+
+                if (btnOpen && modal) {
+                    btnOpen.addEventListener('click', () => modal.classList.add('open'));
+                }
+                if (btnClose && modal) {
+                    btnClose.addEventListener('click', () => modal.classList.remove('open'));
+                }
+                if (modal) {
+                    modal.addEventListener('click', (e) => {
+                        if (e.target === modal) modal.classList.remove('open');
+                    });
+                }
+                if (btnFill) {
+                    btnFill.addEventListener('click', () => {
+                        document.getElementById('prof_name').value = 'Cidadão Teste MVP (Fictício)';
+                        document.getElementById('prof_email').value = 'cidadao.ficticio@mvp.teste';
+                        document.getElementById('prof_phone').value = '(11) 90000-0000';
+                        document.getElementById('prof_cpf').value = '000.000.000-00';
+                        document.getElementById('prof_address_info').value = 'Bairro Exemplo - Cidade MVP';
+                    });
+                }
+            })();
+        </script>
+    <?php endif; ?>
+
     <main>
+        <?php if (isset($_GET['profile_saved'])): ?>
+            <div class="card" style="border-left: 4px solid #126b53;">
+                <strong style="color:#126b53">✓ Dados cadastrais atualizados com sucesso!</strong>
+            </div>
+        <?php endif; ?>
+
         <?php if (isset($_GET['created'])): ?>
             <div class="card" style="border-left: 4px solid #126b53;">
                 <strong style="color:#126b53">✓ Ocorrência registrada com sucesso!</strong>
@@ -662,8 +925,8 @@ if (!empty($alertIds)) {
                     <input type="hidden" name="action" value="login">
                     <input type="hidden" name="redirect_to" value="<?= $showCreateRequested ? 'index.php?novo=1' : 'index.php' ?>">
 
-                    <label for="login_username">Nome de usuário</label>
-                    <input id="login_username" name="username" required autocomplete="username" placeholder="Digite seu nome de usuário">
+                    <label for="login_username">Nome, e-mail ou CPF</label>
+                    <input id="login_username" name="username" required autocomplete="username" placeholder="Digite seu nome (ou usuário), e-mail ou CPF">
 
                     <label for="login_password">Senha</label>
                     <input id="login_password" type="password" name="password" required autocomplete="current-password" placeholder="Digite sua senha">
@@ -682,11 +945,11 @@ if (!empty($alertIds)) {
                         id="reg_username"
                         name="username"
                         required
-                        minlength="6"
+                        minlength="3"
                         maxlength="32"
-                        pattern="[A-Za-z0-9_]{6,32}"
+                        pattern="[A-Za-z0-9_]{3,32}"
                         autocomplete="username"
-                        placeholder="6 a 32 letras, números ou _">
+                        placeholder="3 a 32 letras, números ou _">
 
                     <label for="reg_password">Senha</label>
                     <input
@@ -698,7 +961,72 @@ if (!empty($alertIds)) {
                         autocomplete="new-password"
                         placeholder="Crie uma senha com pelo menos 8 caracteres">
 
-                    <button type="submit" class="btn" style="width:100%;margin-top:8px;padding:12px">Cadastrar e continuar</button>
+                    <button type="button" id="btn-open-register-popup" class="btn" style="width:100%;margin-top:8px;padding:12px">Cadastrar e preencher dados cadastrais</button>
+
+                    <!-- Popup Modal de Dados Cadastrais ao criar usuário -->
+                    <div id="register-popup-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="reg-modal-title">
+                        <div class="modal-box">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                                <h2 id="reg-modal-title" style="margin:0;font-size:18px">Dados Cadastrais do Usuário</h2>
+                                <button type="button" id="btn-close-register-popup" style="background:none;border:0;color:var(--text-muted);font-size:18px;padding:4px 8px;cursor:pointer">✕</button>
+                            </div>
+
+                            <div class="mvp-notice">
+                                <strong>Aviso importante (MVP):</strong> Não é preciso adicionar dados reais ou sensíveis, pois este sistema é um <strong>MVP</strong>. Você pode preencher os campos abaixo com <strong>dados fictícios</strong>.
+                            </div>
+
+                            <label for="reg_name">
+                                Nome completo
+                                <span class="field-mvp-hint">Não é preciso adicionar dado sensível pois é um MVP — aceita nome fictício</span>
+                            </label>
+                            <input
+                                id="reg_name"
+                                name="name"
+                                placeholder="Ex.: Maria da Silva Fictícia (não precisa ser real - MVP)">
+
+                            <label for="reg_email">
+                                E-mail
+                                <span class="field-mvp-hint">Não é preciso adicionar e-mail sensível pois é um MVP — aceita e-mail fictício</span>
+                            </label>
+                            <input
+                                id="reg_email"
+                                type="text"
+                                name="email"
+                                placeholder="Ex.: email.ficticio@mvp.teste (aceita dados fictícios)">
+
+                            <label for="reg_phone">
+                                Telefone / Celular
+                                <span class="field-mvp-hint">Não é preciso adicionar telefone real/sensível pois é um MVP — aceita fictício</span>
+                            </label>
+                            <input
+                                id="reg_phone"
+                                name="phone"
+                                placeholder="Ex.: (11) 90000-0000 (dado fictício para MVP)">
+
+                            <label for="reg_cpf">
+                                CPF / Documento (Dados cadastrais)
+                                <span class="field-mvp-hint">Não é preciso adicionar CPF real/sensível pois é um MVP — aceita fictício</span>
+                            </label>
+                            <input
+                                id="reg_cpf"
+                                name="cpf"
+                                placeholder="Ex.: 000.000.000-00 (use números fictícios)">
+
+                            <label for="reg_address_info">
+                                Endereço / Cidade (Dados cadastrais)
+                                <span class="field-mvp-hint">Não é preciso adicionar endereço sensível pois é um MVP — aceita fictício</span>
+                            </label>
+                            <input
+                                id="reg_address_info"
+                                name="address_info"
+                                placeholder="Ex.: Bairro Exemplo - Cidade Teste (dado fictício)">
+
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+                                <button type="button" id="btn-fill-fictitious-reg" class="btn btn-secondary" style="flex:1">Preencher com dados fictícios</button>
+                                <button type="submit" class="btn" style="flex:1">Concluir cadastro</button>
+                            </div>
+                        </div>
+                    </div>
                 </form>
             </section>
 
@@ -728,6 +1056,60 @@ if (!empty($alertIds)) {
                         tabLogin.style.borderBottom = 'none';
                         tabLogin.style.color = 'var(--text-muted)';
                         tabLogin.style.fontWeight = '600';
+                    });
+                }
+
+                const btnOpenRegPopup = document.getElementById('btn-open-register-popup');
+                const btnCloseRegPopup = document.getElementById('btn-close-register-popup');
+                const regPopupModal = document.getElementById('register-popup-modal');
+                const regUsernameInput = document.getElementById('reg_username');
+                const regPasswordInput = document.getElementById('reg_password');
+                const btnFillFictitiousReg = document.getElementById('btn-fill-fictitious-reg');
+
+                if (btnOpenRegPopup && regPopupModal && regUsernameInput && regPasswordInput) {
+                    const abrirPopupCadastro = () => {
+                        if (!regUsernameInput.reportValidity() || !regPasswordInput.reportValidity()) {
+                            return;
+                        }
+                        regPopupModal.classList.add('open');
+                        const nameField = document.getElementById('reg_name');
+                        if (nameField) nameField.focus();
+                    };
+
+                    btnOpenRegPopup.addEventListener('click', abrirPopupCadastro);
+
+                    if (formRegister) {
+                        formRegister.addEventListener('submit', (e) => {
+                            if (!regPopupModal.classList.contains('open')) {
+                                e.preventDefault();
+                                abrirPopupCadastro();
+                            }
+                        });
+                    }
+                }
+
+                if (btnCloseRegPopup && regPopupModal) {
+                    btnCloseRegPopup.addEventListener('click', () => {
+                        regPopupModal.classList.remove('open');
+                    });
+                }
+
+                if (regPopupModal) {
+                    regPopupModal.addEventListener('click', (e) => {
+                        if (e.target === regPopupModal) {
+                            regPopupModal.classList.remove('open');
+                        }
+                    });
+                }
+
+                if (btnFillFictitiousReg) {
+                    btnFillFictitiousReg.addEventListener('click', () => {
+                        const u = (regUsernameInput && regUsernameInput.value.trim()) ? regUsernameInput.value.trim() : 'cidadao';
+                        document.getElementById('reg_name').value = 'Usuário Fictício (' + u + ')';
+                        document.getElementById('reg_email').value = u + '.ficticio@mvp.teste';
+                        document.getElementById('reg_phone').value = '(11) 90000-0000';
+                        document.getElementById('reg_cpf').value = '000.000.000-00';
+                        document.getElementById('reg_address_info').value = 'Bairro Centro - Cidade Fictícia (MVP)';
                     });
                 }
             </script>
@@ -778,9 +1160,14 @@ if (!empty($alertIds)) {
                     <input type="hidden" name="latitude" id="latitude">
                     <input type="hidden" name="longitude" id="longitude">
 
-                    <label for="photos">Fotos da ocorrência <small style="font-weight:normal;text-transform:none;color:#5a736a">(opcional — até 3 fotos, JPG, PNG ou WebP até 5 MB cada)</small></label>
-                    <input type="file" id="photos" name="photos[]" accept="image/jpeg,image/png,image/webp" multiple>
-                    <div id="photos-preview-container" style="display:none;margin-bottom:16px;gap:8px;flex-wrap:wrap"></div>
+                    <div id="photos-upload-section">
+                        <label for="photos">Fotos da ocorrência <small style="font-weight:normal;text-transform:none;color:#5a736a">(opcional — até 3 fotos, JPG, PNG ou WebP até 5 MB cada)</small></label>
+                        <input type="file" id="photos" name="photos[]" accept="image/jpeg,image/png,image/webp" multiple>
+                        <div id="photos-preview-container" style="display:none;margin-bottom:16px;gap:8px;flex-wrap:wrap"></div>
+                    </div>
+                    <div id="photos-sensitive-notice" style="display:none;background:#fff4e5;border:1px solid #f5c278;border-left:4px solid #c76a00;color:#663500;padding:12px 14px;border-radius:8px;font-size:13px;margin:14px 0 18px 0">
+                        <strong>⚠️ Envio de fotos desativado:</strong> Foi detectado um termo sensível no relato (<span id="sensitive-word-found" style="font-weight:700"></span>). Para preservar a integridade do site e a privacidade dos envolvidos, a opção de subir fotos foi descartada para esta ocorrência.
+                    </div>
 
                     <button type="submit" class="btn" style="width:100%;padding:13px;font-size:16px">Publicar alerta</button>
                 </form>
@@ -1173,6 +1560,78 @@ if (!empty($alertIds)) {
 
                 const photosInput = document.getElementById('photos');
                 const previewContainer = document.getElementById('photos-preview-container');
+                const photosUploadSection = document.getElementById('photos-upload-section');
+                const photosSensitiveNotice = document.getElementById('photos-sensitive-notice');
+                const sensitiveWordFoundSpan = document.getElementById('sensitive-word-found');
+                const sensitiveTerms = <?= json_encode(obterPalavrasSensiveis(), JSON_UNESCAPED_UNICODE) ?>;
+
+                function normalizarTextoJS(str) {
+                    return (str || '')
+                        .toLowerCase()
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .replace(/[^\w\s]/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                }
+
+                function verificarPalavrasSensiveis() {
+                    const titulo = titleInput ? titleInput.value : '';
+                    const descricao = descriptionInput ? descriptionInput.value : '';
+                    const combinado = normalizarTextoJS(titulo + ' ' + descricao);
+
+                    let encontrado = null;
+                    if (combinado !== '') {
+                        for (const termo of sensitiveTerms) {
+                            const escaped = termo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                            const regex = new RegExp('\\b' + escaped + '\\b', 'i');
+                            if (regex.test(combinado)) {
+                                encontrado = termo;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (encontrado) {
+                        if (photosInput) {
+                            photosInput.value = '';
+                            photosInput.disabled = true;
+                        }
+                        if (previewContainer) {
+                            previewContainer.innerHTML = '';
+                            previewContainer.style.display = 'none';
+                        }
+                        if (photosUploadSection) {
+                            photosUploadSection.style.display = 'none';
+                        }
+                        if (photosSensitiveNotice) {
+                            if (sensitiveWordFoundSpan) {
+                                sensitiveWordFoundSpan.textContent = '"' + encontrado + '"';
+                            }
+                            photosSensitiveNotice.style.display = 'block';
+                        }
+                    } else {
+                        if (photosInput) {
+                            photosInput.disabled = false;
+                        }
+                        if (photosUploadSection) {
+                            photosUploadSection.style.display = 'block';
+                        }
+                        if (photosSensitiveNotice) {
+                            photosSensitiveNotice.style.display = 'none';
+                        }
+                    }
+                }
+
+                if (titleInput) {
+                    titleInput.addEventListener('input', verificarPalavrasSensiveis);
+                    titleInput.addEventListener('change', verificarPalavrasSensiveis);
+                }
+                if (descriptionInput) {
+                    descriptionInput.addEventListener('input', verificarPalavrasSensiveis);
+                    descriptionInput.addEventListener('change', verificarPalavrasSensiveis);
+                }
+                verificarPalavrasSensiveis();
 
                 if (photosInput && previewContainer) {
                     photosInput.addEventListener('change', function() {
@@ -1283,9 +1742,15 @@ if (!empty($alertIds)) {
                         <?= h($alert['title']) ?>
                     </h3>
 
+                    <?php
+                    $prog = obterDadosProgressoStatus((string)$alert['status']);
+                    $lastStatusInfo = $latestStatusByAlert[(int)$alert['id']] ?? null;
+                    ?>
                     <div class="meta-bar">
                         <span class="badge badge-category"><?= h($alert['category']) ?></span>
-                        <span class="badge badge-status"><?= h($alert['status']) ?></span>
+                        <span class="badge" style="background:<?= h($prog['bg']) ?>;color:<?= h($prog['cor']) ?>;font-weight:700">
+                            Status: <?= h($alert['status']) ?>
+                        </span>
                         <?php if ($alert['distance_km'] !== null): ?>
                             <span class="badge" style="background:#e3f5ec;color:#0d6948;font-weight:700">📍 <?= formatarDistancia($alert['distance_km']) ?></span>
                         <?php endif; ?>
@@ -1294,6 +1759,43 @@ if (!empty($alertIds)) {
 
                     <p class="alert-desc"><?= h(mb_strimwidth($alert['description'], 0, 220, '…', 'UTF-8')) ?></p>
                     <p class="alert-address">📍 <?= h($alert['address']) ?></p>
+
+                    <div class="status-progress-box" aria-label="Progresso do status da ocorrência">
+                        <div class="status-progress-header">
+                            <span style="font-weight:700;color:var(--text-main)">
+                                Andamento da ocorrência: <span style="color:<?= h($prog['cor']) ?>"><?= h($alert['status']) ?></span>
+                            </span>
+                            <span style="font-weight:700;color:<?= h($prog['cor']) ?>">
+                                <?= (int)$prog['percentual'] ?>% (Etapa <?= (int)$prog['etapa_numero'] ?> de <?= (int)$prog['total_etapas'] ?>)
+                            </span>
+                        </div>
+                        <div class="status-progress-track">
+                            <div class="status-progress-fill" style="width:<?= (int)$prog['percentual'] ?>%;background:<?= h($prog['cor']) ?>"></div>
+                        </div>
+                        <div class="status-steps">
+                            <?php foreach ($prog['etapas'] as $idx => $nomeEtapa): ?>
+                                <?php
+                                $stepClass = '';
+                                $prefix = '';
+                                if ($idx < $prog['indice_atual']) {
+                                    $stepClass = 'done';
+                                    $prefix = '✓ ';
+                                } elseif ($idx === $prog['indice_atual']) {
+                                    $stepClass = 'current';
+                                    $prefix = ($idx === $prog['total_etapas'] - 1) ? '✓ ' : '● ';
+                                }
+                                ?>
+                                <div class="status-step <?= $stepClass ?>" title="<?= h($nomeEtapa) ?>">
+                                    <?= h($prefix . $nomeEtapa) ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <?php if ($lastStatusInfo && !empty($lastStatusInfo['created_at'])): ?>
+                            <div style="font-size:11px;color:var(--text-muted);margin-top:6px;text-align:right">
+                                Última atualização de status: <?= h(formatDateTime((string)$lastStatusInfo['created_at'])) ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
 
                     <div class="card-footer">
                         <span class="support-count">🤝 <?= (int)$alert['support_count'] ?> <?= (int)$alert['support_count'] === 1 ? 'apoio' : 'apoios' ?></span>

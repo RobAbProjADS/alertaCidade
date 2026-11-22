@@ -49,7 +49,8 @@ if (empty($_SESSION['is_manager'])):
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>AlertaCidade — Gestor</title>
+        <title>🚨 AlertaCidade — Gestor</title>
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚨</text></svg>">
         <link rel="stylesheet" href="assets/gestor.css">
         <style>
             * {
@@ -139,8 +140,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
 
 $categoryFilter = trim((string)($_GET['category'] ?? ''));
 $statusFilter = trim((string)($_GET['status'] ?? ''));
+$criticalityFilter = trim((string)($_GET['criticality'] ?? ''));
 $dateFrom = trim((string)($_GET['date_from'] ?? ''));
 $dateTo = trim((string)($_GET['date_to'] ?? ''));
+
+$criticalityOptions = ['Baixa', 'Média', 'Alta', 'Crítica'];
 
 $validDate = static fn(string $date): bool =>
 $date === '' || (bool)preg_match('/^\d{4}-\d{2}-\d{2}$/', $date);
@@ -153,6 +157,9 @@ if (!$validDate($dateTo)) {
 }
 if (!in_array($statusFilter, $statuses, true)) {
     $statusFilter = '';
+}
+if (!in_array($criticalityFilter, $criticalityOptions, true)) {
+    $criticalityFilter = '';
 }
 
 $where = [];
@@ -178,23 +185,40 @@ if ($dateTo !== '') {
 $whereSql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
 
 $stmt = $pdo->prepare("
-    SELECT *
+    SELECT alerts.*,
+           (SELECT COUNT(*) FROM supports s WHERE s.alert_id = alerts.id) AS support_count
     FROM alerts
     $whereSql
-    ORDER BY created_at DESC
+    ORDER BY support_count DESC, created_at DESC
 ");
 $stmt->execute($params);
-$alerts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$allAlerts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$alerts = [];
+foreach ($allAlerts as $al) {
+    $crit = obterNivelCriticidade((int)($al['support_count'] ?? 0));
+    if ($criticalityFilter !== '' && $crit['nivel'] !== $criticalityFilter) {
+        continue;
+    }
+    $alerts[] = $al;
+}
 
 $total = count($alerts);
 $byStatus = array_fill_keys($statuses, 0);
 $byCategory = [];
+$highCriticalityCount = 0;
 $mapAlerts = [];
 
 foreach ($alerts as $alert) {
     $status = (string)$alert['status'];
     if (isset($byStatus[$status])) {
         $byStatus[$status]++;
+    }
+
+    $supportCount = (int)($alert['support_count'] ?? 0);
+    $critInfo = obterNivelCriticidade($supportCount);
+    if ($supportCount >= 5) {
+        $highCriticalityCount++;
     }
 
     $category = (string)$alert['category'];
@@ -214,6 +238,8 @@ foreach ($alerts as $alert) {
             'title' => (string)$alert['title'],
             'category' => $category,
             'status' => $status,
+            'criticality' => $critInfo['icone'] . ' ' . $critInfo['nivel'],
+            'support_count' => $supportCount,
             'address' => (string)$alert['address'],
             'latitude' => (float)$lat,
             'longitude' => (float)$lng,
@@ -250,6 +276,7 @@ $categoryTotals = array_values($byCategory);
 $filterQuery = http_build_query([
     'category' => $categoryFilter,
     'status' => $statusFilter,
+    'criticality' => $criticalityFilter,
     'date_from' => $dateFrom,
     'date_to' => $dateTo,
 ]);
@@ -260,7 +287,8 @@ $filterQuery = http_build_query([
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>AlertaCidade — Painel do gestor</title>
+    <title>🚨 AlertaCidade — Painel do gestor</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚨</text></svg>">
 
     <link rel="stylesheet" href="assets/gestor.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -308,6 +336,19 @@ $filterQuery = http_build_query([
                 </div>
 
                 <div class="filter-field">
+                    <label for="criticality">Criticidade</label>
+                    <select id="criticality" name="criticality">
+                        <option value="">Todas</option>
+                        <?php foreach ($criticalityOptions as $critOpt): ?>
+                            <option value="<?= h($critOpt) ?>"
+                                <?= $criticalityFilter === $critOpt ? 'selected' : '' ?>>
+                                <?= h($critOpt) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="filter-field">
                     <label for="date_from">A partir de</label>
                     <input id="date_from" type="date" name="date_from"
                         value="<?= h($dateFrom) ?>">
@@ -336,6 +377,11 @@ $filterQuery = http_build_query([
                     <span class="metric-value"><?= $byStatus[$status] ?></span>
                 </div>
             <?php endforeach; ?>
+
+            <div class="metric">
+                <span class="metric-label">Criticidade Alta / Crítica</span>
+                <span class="metric-value" style="color:#c75100"><?= $highCriticalityCount ?></span>
+            </div>
 
             <div class="metric">
                 <span class="metric-label">Com localização no mapa</span>
@@ -373,7 +419,13 @@ $filterQuery = http_build_query([
         </section>
 
         <section class="card">
-            <h2>Ocorrências cadastradas</h2>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+                <h2 style="margin:0">Ocorrências cadastradas</h2>
+                <div style="font-size:12px;color:#5a736a;background:#f4f7f6;padding:6px 10px;border-radius:8px">
+                    <strong>Escala de criticidade por apoios:</strong>
+                    🟢 Baixa (0–1) · 🟡 Média (2–4) · 🟠 Alta (5–9) · 🔴 Crítica (10+)
+                </div>
+            </div>
             <?php if (!$alerts): ?>
                 <p class="no-data">Nenhum alerta encontrado com esses filtros.</p>
             <?php else: ?>
@@ -386,12 +438,17 @@ $filterQuery = http_build_query([
                                 <th>Data</th>
                                 <th>Categoria</th>
                                 <th>Local</th>
+                                <th>Criticidade / Apoios</th>
                                 <th>Status</th>
                                 <th>Atualizar status</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($alerts as $alert): ?>
+                                <?php
+                                $supCount = (int)($alert['support_count'] ?? 0);
+                                $crit = obterNivelCriticidade($supCount);
+                                ?>
                                 <tr>
                                     <td><strong><?= h(formatAlertCode((int)$alert['id'])) ?></strong></td>
                                     <td class="description">
@@ -407,7 +464,30 @@ $filterQuery = http_build_query([
                                     <td><?= h(formatDateTime((string)$alert['created_at'])) ?></td>
                                     <td><?= h((string)$alert['category']) ?></td>
                                     <td><?= h((string)$alert['address']) ?></td>
-                                    <td><?= h((string)$alert['status']) ?></td>
+                                    <td>
+                                        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+                                            <span style="display:inline-block;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:700;background:<?= h($crit['bg']) ?>;color:<?= h($crit['cor']) ?>;white-space:nowrap">
+                                                <?= h($crit['icone'] . ' ' . $crit['nivel']) ?>
+                                            </span>
+                                            <span style="font-size:12px;color:#5a736a;font-weight:600;white-space:nowrap">
+                                                🤝 <?= $supCount ?> <?= $supCount === 1 ? 'apoio' : 'apoios' ?>
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <?php $progGestor = obterDadosProgressoStatus((string)$alert['status']); ?>
+                                        <div style="min-width:140px">
+                                            <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:4px">
+                                                <span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:700;background:<?= h($progGestor['bg']) ?>;color:<?= h($progGestor['cor']) ?>">
+                                                    <?= h((string)$alert['status']) ?>
+                                                </span>
+                                                <span style="font-size:11px;font-weight:700;color:<?= h($progGestor['cor']) ?>"><?= (int)$progGestor['percentual'] ?>%</span>
+                                            </div>
+                                            <div style="width:100%;height:6px;background:#dfe9e5;border-radius:999px;overflow:hidden">
+                                                <div style="width:<?= (int)$progGestor['percentual'] ?>%;height:100%;background:<?= h($progGestor['cor']) ?>;border-radius:999px"></div>
+                                            </div>
+                                        </div>
+                                    </td>
                                     <td>
                                         <form method="post" class="filter-row">
                                             <?= csrfField() ?>
@@ -531,7 +611,7 @@ $filterQuery = http_build_query([
 
             const details = document.createElement('p');
             details.textContent =
-                `${alert.category} · ${alert.status} · ${alert.address}`;
+                `${alert.category} · ${alert.status} · Criticidade: ${alert.criticality} (${alert.support_count} apoio(s)) · ${alert.address}`;
 
             const streetView = document.createElement('a');
             streetView.textContent = 'Abrir Google Maps / Street View';
