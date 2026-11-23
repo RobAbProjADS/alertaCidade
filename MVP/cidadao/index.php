@@ -784,7 +784,7 @@ if (!empty($alertIds)) {
             <h1 style="margin:0">AlertaCidade</h1>
             <div style="font-size:13px;display:flex;align-items:center;gap:12px">
                 <?php if ($isLoggedIn): ?>
-                    <span>👤 Olá, <strong><?= h($loggedUser['name'] ?: $loggedUser['username']) ?></strong></span>
+                    <span>👤 Olá, <strong><?= h(trim((string)($loggedUser['name'] ?? '')) ?: (string)$loggedUser['username']) ?></strong></span>
                     <button type="button" id="btn-open-profile-modal" style="background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.35);padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer">Dados cadastrais</button>
                     <a href="index.php?logout=1" style="color:rgba(255,255,255,0.9);text-decoration:underline;font-size:13px">Sair</a>
                 <?php else: ?>
