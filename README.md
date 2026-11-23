@@ -147,6 +147,7 @@ O servidor embutido serve só para desenvolvimento. Antes de publicar, use HTTPS
 | Andressa Gomes | [@andressarag](https://github.com/andressarag) |
 | Bryan Lederhos | [@BryanLederhos](https://github.com/BryanLederhos) |
 | Thiago Piva | [@ThiagoRegattieriPiva](https://github.com/ThiagoRegattieriPiva) |
+| Paulo Diacov | [@pdiacov](https://github.com/pdiacov) |
 
 ## Casos de uso (Use Case)
 
