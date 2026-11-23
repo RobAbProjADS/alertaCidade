@@ -251,6 +251,12 @@ foreach ($placeholderAlerts as $alert) {
         continue;
     }
 
+    // As datas acima estão no horário de Brasília; o banco guarda em UTC
+    // (mesmo padrão do CURRENT_TIMESTAMP do SQLite).
+    $alert[7] = (new DateTime($alert[7], new DateTimeZone('America/Sao_Paulo')))
+        ->setTimezone(new DateTimeZone('UTC'))
+        ->format('Y-m-d H:i:s');
+
     $insertAlert->execute([
         $alert[0],
         $alert[1],
@@ -675,7 +681,7 @@ function sugerirCategoria(string $texto, ?string $titulo = null): ?string
                 'tubulacao',
                 'infiltracao',
                 'sabesp',
-                'alegamento',
+                'alagamento',
                 'mau cheiro',
                 'bueiro',
                 'poca',
