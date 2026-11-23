@@ -146,6 +146,7 @@ O servidor embutido serve só para desenvolvimento. Antes de publicar, use HTTPS
 | Roberta Cristina de Abreu | [@RobAbProjADS](https://github.com/RobAbProjADS) |
 | Andressa Gomes | [@andressarag](https://github.com/andressarag) |
 | Bryan Lederhos | [@BryanLederhos](https://github.com/BryanLederhos) |
+| Paulo Diacov | [@pdiacov](https://github.com/pdiacov) |
 
 ## Casos de uso (Use Case)
 

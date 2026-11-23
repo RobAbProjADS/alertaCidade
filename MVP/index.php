@@ -47,6 +47,7 @@ if ($isMobile) {
         color: #126b53;
         margin: 0 0 8px 0;
         letter-spacing: -0.5px;
+        line-height: 32px;
     }
     .subtitle {
         font-size: 15px;
